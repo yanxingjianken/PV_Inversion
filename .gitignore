@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.ipynb_checkpoints/
+
+# Editor / OS
+.DS_Store
+.vscode/
+*.swp
+
+# Temp / scratch
+*.tmp
+*.bak
+tmp/
+
+# Large reference-only Fortran build artifacts (keep source, drop binaries)
+*.o
+*.mod
+*.exe
+inv3d_ca2025/*.out
+talia_tutorial/inv3d/*.out
+
+# Keep small NetCDFs (data/ < a few MB) but drop anything huge
+*.nc.bak
+*.grib
