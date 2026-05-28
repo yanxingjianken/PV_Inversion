@@ -32,11 +32,13 @@ warnings.filterwarnings("ignore")
 # Paths
 # ---------------------------------------------------------------------------
 CASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT_DIR  = os.path.join(CASE_DIR, "data", "wu_out")
+OUT_DIR  = os.path.join(CASE_DIR, "data", "ppvi")
 FIG_DIR  = os.path.join(CASE_DIR, "figs")
 os.makedirs(FIG_DIR, exist_ok=True)
 
-ADV_FILE = os.path.join(OUT_DIR, "pv_advection.nc")
+# Methods to plot (one 3-panel figure each). Reads the new SH-gradient
+# advection NCs written by 06_read_outs.py.
+METHODS = ["linear", "nonlinear"]
 
 # ---------------------------------------------------------------------------
 # Plotting configuration
@@ -76,21 +78,32 @@ LAT_MIN, LAT_MAX =   10.0,  85.0
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
-def main():
-    # Load PV advection dataset
-    print(f"Loading {ADV_FILE} ...")
-    if not os.path.exists(ADV_FILE):
-        raise FileNotFoundError(f"{ADV_FILE} not found. Run 06_read_outs.py first.")
-    ds = xr.open_dataset(ADV_FILE)
+def _plot_one(method: str):
+    """Render the 3-panel Fig-8 replica for one PPVI method."""
+    adv_file = os.path.join(OUT_DIR, f"method_{method}_advection.nc")
+    print(f"Loading {adv_file} ...")
+    if not os.path.exists(adv_file):
+        raise FileNotFoundError(f"{adv_file} not found. Run 06_read_outs.py first.")
+    ds = xr.open_dataset(adv_file)
 
-    lats = ds["lat"].values     # (NY,) — N→S order
-    lons = ds["lon"].values     # (NX,) — W→E order
+    # New schema (from 06_read_outs.py with pvtend.sh_ops):
+    #   coords: piece, latitude, longitude
+    #   vars:   q_pert_250, true_pv_tend, PVadv, U_250, V_250, U_ind, V_ind
+    lats = ds["latitude"].values   # ascending S→N
+    lons = ds["longitude"].values  # 0→360°E
+    # Shift lons to [-180, 180) so the Pacific/N-America domain is contiguous.
+    if lons.max() > 180.0:
+        lons_shift = np.where(lons > 180.0, lons - 360.0, lons)
+        order = np.argsort(lons_shift)
+        lons = lons_shift[order]
+    else:
+        order = np.arange(lons.size)
     LON2D, LAT2D = np.meshgrid(lons, lats)
 
-    PVadv   = ds["PVadv"].values         # (3, NY, NX)  PVU/day
-    q_anom  = ds["Q_anom_250"].values    # (NY, NX)     PVU
-    U_ind   = ds["U_induced_250"].values # (3, NY, NX)  m/s
-    V_ind   = ds["V_induced_250"].values # (3, NY, NX)  m/s
+    PVadv   = ds["PVadv"].values[:, :, order]    # (3, NY, NX)  PVU/day
+    q_anom  = ds["q_pert_250"].values[:, order]  # (NY, NX)     PVU
+    U_ind   = ds["U_ind"].values[:, :, order]    # (3, NY, NX)  m/s
+    V_ind   = ds["V_ind"].values[:, :, order]    # (3, NY, NX)  m/s
 
     print(f"  lats: {lats[0]:.1f}N → {lats[-1]:.1f}N, lons: {lons[0]:.1f}E → {lons[-1]:.1f}E")
     print(f"  PVadv range: {np.nanmin(PVadv):.2f} … {np.nanmax(PVadv):.2f} PVU/day")
@@ -148,7 +161,7 @@ def main():
     )
     fig.suptitle(
         "250-hPa PV Advection Induced by Piecewise PV Anomalies\n"
-        "2025-01-08 00Z  (CA blocking event)",
+        f"2025-01-08 00Z  (CA blocking event)  —  method={method}",
         fontsize=13, fontweight="bold",
     )
 
@@ -258,15 +271,17 @@ def main():
     # ---------------------------------------------------------------------------
     # Save
     # ---------------------------------------------------------------------------
-    png_path = os.path.join(FIG_DIR, "fig8_replica.png")
-    pdf_path = os.path.join(FIG_DIR, "fig8_replica.pdf")
+    png_path = os.path.join(FIG_DIR, f"fig8_3panel_{method}.png")
+    pdf_path = os.path.join(FIG_DIR, f"fig8_3panel_{method}.pdf")
     fig.savefig(png_path, dpi=300, bbox_inches="tight")
     fig.savefig(pdf_path, bbox_inches="tight")
-    print(f"\nSaved: {png_path}")
-    print(f"Saved: {pdf_path}")
+    print(f"  Saved: {png_path}")
+    print(f"  Saved: {pdf_path}")
     plt.close(fig)
-    print("=== 07_plot_fig8.py complete ===")
 
 
 if __name__ == "__main__":
-    main()
+    for m in METHODS:
+        print(f"\n--- 3-panel plot: method = {m} ---")
+        _plot_one(m)
+    print("\n=== 07_plot_fig8.py complete ===")
