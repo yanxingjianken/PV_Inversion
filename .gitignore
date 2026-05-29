@@ -8,6 +8,7 @@ __pycache__/
 # Editor / OS
 .DS_Store
 .vscode/
+.idea/
 *.swp
 
 # Temp / scratch
@@ -15,13 +16,35 @@ __pycache__/
 *.bak
 tmp/
 
-# Large reference-only Fortran build artifacts (keep source, drop binaries)
+# Fortran build artefacts
 *.o
 *.mod
 *.exe
+fort.*
+core.*
+
+# Pipeline data — regenerable from config.py + ERA5
+data/era5/*.nc
+data/clim/*.nc
+data/wu_in/*
+data/wu_out/*
+data/wu_bin/
+data/figs/*.png
+data/figs/*.pdf
+
+# Allow the canonical reference figure for the README
+!data/figs/fig8_replica.png
+
+# Per-step diagnostic figures (regenerable)
+steps/**/*.png
+steps/**/*.pdf
+
+# SH-track artefacts (Phase 6, local A/B only)
+data/sh_*/
+data/figs/fig8_replica_sh.*
+
+# Legacy reference dumps
 inv3d_ca2025/*.out
 talia_tutorial/inv3d/*.out
-
-# Keep small NetCDFs (data/ < a few MB) but drop anything huge
 *.nc.bak
 *.grib

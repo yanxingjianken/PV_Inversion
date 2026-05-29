@@ -1,1 +1,0 @@
-f77 -o xtrct_usa xtrct_usa.f $GEMLIB/*.a $GEMLIB/gemlib.a
