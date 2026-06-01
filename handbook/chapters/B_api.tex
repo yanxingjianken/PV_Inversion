@@ -1,0 +1,101 @@
+\chapter{Public-API Reference}
+\label{app:api}
+
+\section{Part I --- Wu Fortran reference (\texttt{wu/})}
+
+\subsection{\texttt{config.py} (shared)}
+\begin{itemize}\setlength\itemsep{0pt}
+\item Grid: \texttt{NX=87}, \texttt{NY=51}, \texttt{NW=10};
+      \texttt{PLEVS} (10 levels, $1000$--$200$\,hPa).
+\item Solver params: \texttt{OMEGS}, \texttt{OMEGH}, \texttt{PART},
+      \texttt{INLIN}, \texttt{MAXT}, \texttt{THRSH}, piece definitions.
+\item Paths: \texttt{WU\_IN\_DIR}, \texttt{WU\_OUT\_DIR},
+      \texttt{FORT\_DIR}, \texttt{FIG\_DIR}.
+\end{itemize}
+
+\subsection{Fortran programs (\texttt{wu/fortran/})}
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{pvpialln\_94UV.f} --- Pass A/B: Ertel PV + balanced
+      $\psi,\Phi$ (\Cref{sec:wu_passes}).
+\item \texttt{qinvert21\_94.f} (BALNC) --- Pass C: total balanced
+      inversion (\cref{eq:wu_psi,eq:wu_H}).
+\item \texttt{qinvertp21\_94.f} (BALP) --- Pass D: 3-piece perturbation
+      inversion.
+\end{itemize}
+
+\subsection{Step drivers (\texttt{wu/steps/})}
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{05\_wu\_pass\_ab/} --- compile + Pass A/B; writes
+      \texttt{meanq}, \texttt{meanh}, \texttt{event\_\{q,h\}.out}.
+\item \texttt{06\_wu\_pass\_c/} --- Pass C; writes
+      \texttt{event\_bal.out}.
+\item \texttt{07\_wu\_pass\_d/} --- Pass D; writes
+      \texttt{event\_pert.out}.
+\item \texttt{08\_parse\_outputs/} --- ERA5 Ertel PV
+      (\cref{eq:wu_ertel_pv}) + Wu/ERA5 comparison.
+\item \texttt{09\_pv\_advection/} --- PV advection by induced winds
+      (\cref{eq:wu_pvadv}); writes \texttt{pv\_advection.nc}.
+\item \texttt{10\_fig8/} --- Davis 2022 Fig.~8 replica
+      (\texttt{fig8\_replica.\{png,pdf\}}).
+\end{itemize}
+
+\section{Part II --- Python SH port (\texttt{sh/sh\_ppvi/})}
+
+\subsection{\texttt{sh\_ppvi.coords}}
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{PLEVS\_PA}, \texttt{PI\_VALS}: 10-level pressure / Exner grid.
+\item \texttt{D1\_MAT}, \texttt{D2\_MAT}: $\partial/\partial\pi$,
+      $\partial^2/\partial\pi^2$ matrices; \texttt{d\_pi}, \texttt{d\_pi\_pi}.
+\item \texttt{coriolis(lat)}, \texttt{theta\_from\_T(T)},
+      \texttt{dpi\_phi\_from\_theta(theta)}.
+\end{itemize}
+
+\subsection{\texttt{sh\_ppvi.nondim}}
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{Scales} --- Wu non-dimensional constants
+      (\texttt{DPI, LL, FF, THO, QCONST, UC}, \ldots;
+      \Cref{sec:wu_nondim}).
+\item field transforms \texttt{nondim\_H}, \texttt{nondim\_psi},
+      \texttt{nondim\_q}.
+\end{itemize}
+
+\subsection{\texttt{sh\_ppvi.sor}}
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{build\_BB\_BH\_BL(pi\_wu)} --- vertical 2nd-derivative
+      stencil (\cref{eq:wu_psi}; \Cref{sec:wu_vertical}).
+\end{itemize}
+
+\subsection{\texttt{sh\_ppvi.wu\_ops}}
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{lap\_wu}, \texttt{inv\_lap\_wu}, \texttt{inv\_helm\_wu},
+      \texttt{grad\_wu}, \texttt{jac\_wu} --- Wu-scaled SH operator
+      wrappers over \texttt{pvtend.sh\_ops} (\Cref{sec:wu_sh_ops}).
+\end{itemize}
+
+\subsection{\texttt{sh\_ppvi.balnc} / \texttt{sh\_ppvi.balp}}
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{balnc.balnc\_sh(\dots)} --- coupled $H$--$\psi$ Picard
+      solve (\cref{eq:wu_psi,eq:wu_H}); Pass~C.
+\item \texttt{balp} --- piecewise perturbation inversion; Pass~D
+      (pending Pass~C convergence, \Cref{sec:wu_open}).
+\end{itemize}
+
+\subsection{\texttt{sh\_ppvi.pv\_calc}}
+\begin{itemize}\setlength\itemsep{0pt}
+\item Ertel PV diagnostic --- \cref{eq:Q}.
+\end{itemize}
+
+\section{SH operators (\texttt{pvtend.sh\_ops})}
+
+All operate level-by-level on a NH grid via internal parity-mirroring.
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{gradient\_sh}, \texttt{laplacian\_sh},
+      \texttt{invert\_laplacian\_sh}, \texttt{vortdiv\_sh},
+      \texttt{helmholtz\_sh}, \texttt{second\_derivs\_sh}.
+\item \texttt{invert\_helmholtz\_sh}$^\dagger$,
+      \texttt{filter\_low\_modes\_sh}$^\dagger$ --- added for the BALNC
+      port (\Cref{sec:wu_sh_ops}); purely additive.
+\end{itemize}
+\noindent$^\dagger$ new functions; no existing \texttt{sh\_ops} routine
+was modified.
+

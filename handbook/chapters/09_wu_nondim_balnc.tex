@@ -1,0 +1,269 @@
+\chapter{The Wu Non-Dimensional BALNC Port (Spherical Harmonics)}
+\label{chap:wu_balnc}
+
+This chapter documents the \emph{second}, independent inversion thread
+in the repository: a faithful spherical-harmonic (SH) re-implementation
+of W.~Wu's finite-difference total-PV inversion code
+\texttt{qinvert21\_94.f} (the Fortran reference of
+\Cref{chap:wu_solver,chap:wu_pipeline}).  Unlike the $\psi$--$\Phi$
+Charney/$f_0$-plane closures of \Cref{sec:closure}, this thread
+works in Wu's own \textbf{non-dimensional units} and inverts the coupled
+\emph{H-equation} (geopotential-like) and \emph{$\psi$-equation}
+(streamfunction) system by outer Picard iteration.  The code lives in
+\texttt{sh/sh\_ppvi/} (\texttt{nondim.py}, \texttt{sor.py},
+\texttt{coords.py}, \texttt{wu\_ops.py}, \texttt{balnc.py},
+\texttt{balp.py}) and the SH operators it calls live in
+\texttt{pvtend.sh\_ops}.
+
+\begin{keybox}[Status at time of writing]
+The \textbf{BALNC} (full balanced) Pass~C \emph{does not yet converge}.
+With all nonlinear terms frozen and under-relaxation
+$\mathrm{part}=0.05$, the streamfunction norm grows monotonically
+($|\psi|\!:64\!\to\!381$ over 200 outer iterations) rather than
+settling; with $\mathrm{part}=0.3$ it diverges explosively
+($|\psi|\!\to\!\mathrm{NaN}$ by iteration~100).  The cause is a residual
+$H$--$\psi$ feedback, \emph{not} the Helmholtz conditioning hypothesised
+in earlier notes (see \Cref{sec:wu_open}).
+\end{keybox}
+
+\section{Wu Non-Dimensionalisation}
+\label{sec:wu_nondim}
+
+All quantities are scaled by the constants assembled in
+\texttt{nondim.Scales} (mirroring \texttt{qinvert21\_94.f} L213--276).
+For the standard $1.5^\circ$ grid ($\Delta\lambda=1.5^\circ$, $N_L=10$
+levels):
+
+\begin{center}\small
+\begin{tabular}{lll}
+  \toprule
+  Scale & Definition & Value ($1.5^\circ$, $N_L{=}10$) \\
+  \midrule
+  $\mathrm{DPI}$        & $500/N_L$                                  & $50$ \\
+  $\mathrm{LL}$         & $(2\!\times\!10^{7}/\pi)\cdot\Delta\lambda\cdot\pi/180$ & $1.667\times10^{5}$ m \\
+  $\mathrm{FF}$         & reference Coriolis                          & $10^{-4}$ s$^{-1}$ \\
+  $\mathrm{THO}$        & $\mathrm{FF}^2\,\mathrm{LL}^2/\mathrm{DPI}$ & $5.556$ K \\
+  $\mathrm{FRC}$        & $\mathrm{DPI}\cdot\mathrm{THO}/(\mathrm{FF}^2\mathrm{LL}^2)$ & $\equiv 1$ \\
+  $\mathrm{QCONST}$     & $10^{6}\kappa\,g\,c_p\,\mathrm{FF}\,\mathrm{THO}/(p_0\,\mathrm{DPI})$ & $0.313$ PVU \\
+  $\mathrm{UC}$         & $\mathrm{DPI}\cdot\mathrm{THO}/(\mathrm{FF}\cdot\mathrm{LL})$ & $16.67$ m\,s$^{-1}$ \\
+  $H_{\text{factor}}$   & $g/(\mathrm{THO}\cdot\mathrm{DPI})$         & $3.530\times10^{-2}$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The field transforms (\texttt{nondim.py}) are
+\begin{align}
+H_{\text{nd}} &= \Phi_{\text{phys}}\,/\,(\mathrm{THO}\cdot\mathrm{DPI}),
+   &\Phi_{\text{phys}}&=g\,z\ [\text{m}^2\,\text{s}^{-2}], \\
+\psi_{\text{nd}} &= \psi_{\text{phys}}\cdot 10^{-5}\cdot H_{\text{factor}},
+   &\theta_{\text{nd}}&=\theta_{\text{phys}}/\mathrm{THO}, \\
+q_{\text{nd}}(k) &= \mathrm{PIF}(k)\,q_{\text{phys}}(k)\,/\,(10^{2}\,\mathrm{QCONST}),
+   &\mathrm{PIF}(k)&=(p_k/p_0)^{2.5\kappa}.
+\end{align}
+
+\begin{warnbox}[Two subtle factor-of-$g$ traps]
+(1) Wu reads heights in \emph{metres}; our $H_{\text{phys}}$ is a
+\emph{geopotential} $\Phi=gz$, so \texttt{nondim\_H} divides by
+$(\mathrm{THO}\cdot\mathrm{DPI})$ directly (not by $H_{\text{factor}}=g/(\cdots)$),
+otherwise a spurious extra $g$ enters.
+(2) The vertical operators \emph{must} be built on Wu's non-dimensional
+$\pi$, \texttt{PI\_WU}$=c_p(p/p_0)^\kappa/\mathrm{DPI}$ (with
+$\Delta\pi_{\text{wu}}\!\approx\!1$ per level), \emph{not} on the
+physical $\pi=(p/p_0)^\kappa$ (with $\Delta\pi\!\approx\!0.05$).  The
+latter inflates $BB$ from $\mathcal{O}(-10)$ to $\mathcal{O}(-3886)$ and
+blows up the static-stability term \texttt{STB} (\texttt{sor.py}
+post-\texttt{build\_BB\_BH\_BL} comment).
+\end{warnbox}
+
+\section{Vertical Operator: \texorpdfstring{$BB,BH,BL$}{BB,BH,BL}}
+\label{sec:wu_vertical}
+
+Wu's second-$\pi$-derivative stencil (\texttt{sor.build\_BB\_BH\_BL},
+mirroring \texttt{qinvert21} L202--209), evaluated on \texttt{PI\_WU}:
+\begin{equation}
+BB_k = \frac{-2}{(\pi_{k+1}{-}\pi_k)(\pi_k{-}\pi_{k-1})},\quad
+BH_k = \frac{2}{(\pi_{k+1}{-}\pi_k)(\pi_{k+1}{-}\pi_{k-1})},\quad
+BL_k = \frac{2}{(\pi_{k+1}{-}\pi_{k-1})(\pi_k{-}\pi_{k-1})},
+\end{equation}
+so that $\partial^2 f/\partial\pi^2|_k \approx BL_k f_{k-1}+BB_k f_k+BH_k f_{k+1}$.
+Numerically (interior $k=1\ldots8$):
+\begin{center}\small
+\begin{tabular}{rrrrr}
+\toprule
+$k$ & $BB_k$ & $BH_k$ & $BL_k$ & $BB_k{+}BH_k{+}BL_k$ \\
+\midrule
+1 & $-9.637$ & $4.679$ & $4.958$ & $\sim 0$ \\
+2 & $-4.121$ & $1.285$ & $2.836$ & $\sim 0$ \\
+3 & $-2.472$ & $1.408$ & $1.064$ & $\sim 0$ \\
+4 & $-2.903$ & $1.365$ & $1.539$ & $\sim 0$ \\
+5 & $-2.230$ & $1.035$ & $1.195$ & $\sim 0$ \\
+6 & $-1.611$ & $0.733$ & $0.878$ & $\sim 0$ \\
+7 & $-2.268$ & $1.424$ & $0.844$ & $\sim 0$ \\
+8 & $-3.314$ & $1.538$ & $1.776$ & $\sim 0$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{keybox}[Row sums vanish $\Rightarrow$ pure 2nd derivative]
+The rows sum to $\mathcal{O}(10^{-15})$: the operator has \emph{no}
+zeroth-order (Helmholtz) part of its own.  Every bit of vertical
+coupling is off-diagonal ($BH_k H_{k+1}+BL_k H_{k-1}$) and, in the
+current solver, is evaluated \textbf{explicitly} (lagged) in both the
+$\psi$- and $H$-steps.  Explicit treatment of a stiff vertical operator
+is only conditionally stable --- the practical stability limit observed
+is $\mathrm{part}\lesssim 0.07$.  This is the structural reason the
+outer iteration is so fragile (\Cref{sec:wu_open}).
+\end{keybox}
+
+\section{The Coupled BALNC System}
+\label{sec:wu_balnc_eqs}
+
+\texttt{balnc.balnc\_sh} solves, by outer Picard iteration, the two
+spectral elliptic equations below (Wu non-dim throughout).  The SH
+Laplacian is $\nabla^2_{\text{wu}}\equiv\mathrm{LL}^2\nabla^2_{\text{sph}}$
+(\texttt{wu\_ops.lap\_wu}), so its eigenvalue at total wavenumber $n$ is
+$-n(n{+}1)\,\mathrm{LL}^2/a^2$.
+
+\paragraph{$\psi$-equation (Poisson; \texttt{\_psi\_rhs}).}
+\begin{equation}
+\nabla^2_{\text{wu}}\psi_k
+   = \underbrace{\frac{q_k - f\,\mathrm{STB}_k + \nabla^2_{\text{wu}}H_k
+        - \mathrm{ZNL}_k + \mathrm{ZL}_k + \mathrm{ZP}_k}{f+\mathrm{STB}_k}}_{\text{RHS}_\psi},
+\label{eq:wu_psi}
+\end{equation}
+with $\mathrm{STB}_k=BL_kH_{k-1}+BB_kH_k+BH_kH_{k+1}$ (static stability),
+floored at $10^{-4}$.
+
+\paragraph{$H$-equation (modified Helmholtz; \texttt{\_H\_rhs}).}
+\begin{equation}
+\bigl(\nabla^2_{\text{wu}} + \mathrm{ASI}_k\,BB_k\bigr)H_k
+  \;+\;\mathrm{ASI}_k\bigl(BH_kH_{k+1}+BL_kH_{k-1}\bigr)
+  \;=\;\underbrace{f\,\mathrm{VOR}_k+\mathrm{ZNL}_k+q_k+\mathrm{ZL}_k+\mathrm{ZP}_k}_{rh_k},
+\label{eq:wu_H}
+\end{equation}
+where $\mathrm{VOR}_k=\nabla^2_{\text{wu}}\psi_k$ and the absolute
+isentropic vorticity $\mathrm{ASI}_k=f+\mathrm{VOR}_k$ (floored so
+$\mathrm{ASI}\ge 10^{-4}$).  The $H$-step is solved by an
+operator-split modified-Helmholtz inversion (\texttt{wu\_ops.inv\_helm\_wu}
+$\to$ \texttt{pvtend.sh\_ops.invert\_helmholtz\_sh}):
+\begin{equation}
+c_k=\overline{\mathrm{ASI}_k}\,BB_k\ \ (\text{constant shift}),\qquad
+\text{remainder }(\mathrm{ASI}_k-\overline{\mathrm{ASI}_k})BB_kH_k\ \text{lagged explicitly.}
+\end{equation}
+
+\paragraph{Cross-isobaric / nonlinear terms (\texttt{\_zl\_zp}, \texttt{\_znl}).}
+\begin{align}
+\mathrm{ZL}_k &= \frac{1}{\cos^2\phi}\,
+   \Bigl(\tfrac{\partial H_x}{\partial\pi}\Bigr)_k
+   \Bigl(\tfrac{\partial\psi_x}{\partial\pi}\Bigr)_k, &
+\mathrm{ZP}_k &= \Bigl(\tfrac{\partial H_y}{\partial\pi}\Bigr)_k
+   \Bigl(\tfrac{\partial\psi_y}{\partial\pi}\Bigr)_k, \\
+\mathrm{ZNL}_k &= 2\,J(\psi_x,\psi_y)_k + \beta\,\psi_{y,k}.
+\end{align}
+$\mathrm{ZL}$ is \emph{bilinear} in $H$ and $\psi$; $\mathrm{ZNL}$ is
+\emph{quadratic} in $\psi$.  As $\psi$ grows during Picard these terms
+amplify $\text{RHS}_\psi$ and feed divergence, so the current code
+\textbf{freezes} $\mathrm{ZL},\mathrm{ZP},\mathrm{ZNL}$ at the initial
+(event-state) field (\texttt{balnc.py} ``freeze block'').
+
+\section{SH Realisation of the Wu Operators}
+\label{sec:wu_sh_ops}
+
+\begin{center}\small
+\begin{tabular}{lll}
+\toprule
+Wu non-dim operator & SH backend (\texttt{pvtend.sh\_ops}) & Notes \\
+\midrule
+$\mathrm{LL}^2\nabla^2$ (\texttt{lap\_wu})       & \texttt{laplacian\_sh}        & eigval $-n(n{+}1)/a^2$ \\
+$(\mathrm{LL}^2\nabla^2)^{-1}$ (\texttt{inv\_lap\_wu}) & \texttt{invert\_laplacian\_sh} & $n{=}0$ pinned to 0 \\
+$(\mathrm{LL}^2\nabla^2{+}c)^{-1}$ (\texttt{inv\_helm\_wu}) & \texttt{invert\_helmholtz\_sh}$^\dagger$ & $c_{\text{sh}}{=}c/\mathrm{LL}^2$ \\
+$\mathrm{LL}\,\nabla$ (\texttt{grad\_wu})        & \texttt{gradient\_sh}         & \\
+Jacobian (\texttt{jac\_wu})                      & \texttt{gradient\_sh}$\times$2 & \\
+$n<2$ projector (\texttt{filter\_low\_modes\_sh})$^\dagger$ & --- & m-major packing \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent$^\dagger$ \texttt{invert\_helmholtz\_sh} and
+\texttt{filter\_low\_modes\_sh} were \textbf{added} to
+\texttt{pvtend.sh\_ops} for this thread.  They are \emph{purely
+additive} (new functions + two new \texttt{\_\_all\_\_} entries); no
+existing \texttt{sh\_ops} routine was modified, so all prior callers are
+unaffected.
+
+\section{Discrepancies between the Wu FD Reference and the SH Port}
+\label{sec:wu_discrepancies}
+
+\begin{enumerate}[leftmargin=1.4em]
+\item \textbf{Domain / boundary conditions.}  Wu's FD solver works on a
+  \emph{bounded NH window} and pins the lateral rows/columns
+  ($I{=}1,I{=}N_Y,J{=}1,J{=}N_X$) as Dirichlet walls, which suppresses
+  planetary $n\!\le\!1$ modes.  The SH port works on the \emph{hemisphere}
+  ($0$--$90^\circ$N, 61 latitudes at $1.5^\circ$) with a parity mirror to
+  the full sphere; it has \emph{no} lateral walls.  The inverse Laplacian
+  therefore amplifies $n{=}1$ by $a^2/[n(n{+}1)\mathrm{LL}^2]\approx 730\times$.
+  \emph{Mitigation:} \texttt{filter\_low\_modes\_sh($n_{\min}{=}2$)}
+  projects out $n{=}0,1$ from $\text{RHS}_\psi$ before inversion and
+  re-anchors the $n{=}0,1$ content to the initial $\psi$.
+
+\item \textbf{Helmholtz conditioning is \emph{not} the problem.}  Because
+  the grid is NH-only ($0$--$90^\circ$N), the hemispheric mean
+  $\overline{f}=0.925$ (\emph{not} $0$, as an earlier global-symmetric
+  assumption suggested).  Hence
+  $c_k=\overline{\mathrm{ASI}_k}\,BB_k$ ranges from $-9.6$ ($k{=}1$) to
+  $-3.3$ ($k{=}8$), and the Helmholtz eigenvalues $-n(n{+}1)\mathrm{LL}^2/a^2+c_k$
+  stay safely negative and $\mathcal{O}(-10\ldots -3)$ for \emph{all} $n$.
+  The $H$-step inversion is well-posed; the previously documented
+  ``$c_k\approx 0$'' root cause is \textbf{retracted}.
+
+\item \textbf{Equatorial denominator.}  $\text{RHS}_\psi$ divides by
+  $f+\mathrm{STB}$.  On the global sphere $f\!\to\!0$ near the equator
+  makes this denominator $\mathcal{O}(0.03)$ and injects spurious
+  large-scale content.  \emph{Mitigation:} \texttt{\_psi\_rhs} zeroes the
+  RHS wherever $f+\mathrm{STB}<0.3$ (roughly $|\phi|\lesssim 15^\circ$),
+  outside Wu's NH analysis window.
+
+\item \textbf{Explicit vertical coupling.}  Wu's FD solver advances the
+  vertical $BB/BH/BL$ coupling inside a tridiagonal/SOR sweep; the SH
+  port treats the off-diagonal $BH/BL$ terms \emph{explicitly} (lagged).
+  This is the dominant stability bottleneck ($\mathrm{part}\lesssim0.07$).
+
+\item \textbf{$f_0$-plane amplitude bias.}  The piecewise closures still
+  use $\delta\Phi\approx f_0\delta\psi$ (\Cref{sec:closure}), which
+  under-estimates upper-level geopotential and contributes the
+  $\sim\!0.1\times$ amplitude bias relative to the Wu Fortran reference.
+\end{enumerate}
+
+\section{Open Issues / Not Yet Done}
+\label{sec:wu_open}
+
+\begin{warnbox}[The real BALNC non-convergence]
+With $\mathrm{ZL/ZP/ZNL}$ frozen and $\mathrm{part}=0.05$, the
+$\psi$-\emph{target} \texttt{psi\_new} itself grows
+($\,|\text{psi\_new}|:185\!\to\!455$ over 200 iters) while $|H|$ barely
+moves ($442\!\to\!452$).  The growth is a slow $H$--$\psi$ feedback:
+$\psi\!\uparrow\,\Rightarrow\,\mathrm{VOR}\!\uparrow\,\Rightarrow\,rh_H\!\uparrow\,\Rightarrow\,H$
+drifts $\Rightarrow$ $\mathrm{STB},\nabla^2H$ in
+$\text{RHS}_\psi$ change $\Rightarrow$ \texttt{psi\_new}$\,\uparrow$.
+Freezing the explicit nonlinear terms removed the \emph{fast} Picard
+blow-up but not this \emph{slow} linear feedback.
+\end{warnbox}
+
+\noindent Concrete TODO items (carried in session findings):
+\begin{itemize}[leftmargin=1.4em]
+\item \textbf{BALNC convergence (Pass~C).}  Candidate fixes not yet
+  tried: (i) solve the $H$--$\psi$ system \emph{coupled} (eliminate
+  $\psi$ analytically into the $H$-equation rather than alternating);
+  (ii) implicit vertical coupling (tridiagonal solve in $k$ at each
+  spectral coefficient) instead of explicit lagging; (iii) relax $H$ at
+  iteration~0 as well (currently the first $H$ update is un-relaxed and
+  jumps \texttt{psi\_new} from $92$ to $185$).
+\item \textbf{Pass~D} (piecewise pieces from the balanced full field,
+  \texttt{balp.py}) is \emph{not run} pending a converged Pass~C; and the
+  same $n{=}0,1$ projection fix must be inlined into \texttt{balp.py}.
+\item \textbf{Filename mismatch:} \texttt{event\_pieces.nc} vs.\
+  \texttt{piecewise.nc} between the writer and \texttt{fig8.py} /
+  \texttt{make\_figs.py}.
+\item \textbf{Validation:} no quantitative comparison of the SH BALNC
+  output against the Wu Fortran reference has been performed yet
+  (blocked on convergence).
+\end{itemize}

@@ -1,0 +1,192 @@
+\chapter{Mathematical Foundations}
+\label{chap:math}
+
+\section{Coordinates and Constants}
+
+The vertical coordinate is the \textbf{Exner pressure}
+\begin{equation}
+\boxed{\;\pi \equiv \left(\frac{p}{p_0}\right)^{\!\kappa}\;,\qquad
+       p_0=10^{5}\,\mathrm{Pa},\qquad
+       \kappa=\frac{R_d}{c_p}=\tfrac{287}{1004}\approx 0.2858\;}
+\label{eq:exner}
+\end{equation}
+with $\pi=1$ at the surface and $\pi\to 0$ at the model top.  On the
+$K=10$ ERA5 pressure levels used here we obtain
+\begin{equation}
+\pi_k = \bigl[1.000,\,0.978,\,0.955,\,0.903,\,0.864,\,0.820,\,
+              0.770,\,0.709,\,0.673,\,0.631\bigr].
+\end{equation}
+
+\begin{center}\small
+\begin{tabular}{lll}
+  \toprule
+  Constant & Symbol & Value \\
+  \midrule
+  Gravity                & $g$        & $9.80665$ m\,s$^{-2}$     \\
+  Dry-air gas constant   & $R_d$      & $287$ J\,kg$^{-1}$\,K$^{-1}$ \\
+  Specific heat at $p$   & $c_p$      & $1004$ J\,kg$^{-1}$\,K$^{-1}$\\
+  $\kappa=R_d/c_p$       & $\kappa$   & $0.28586$                   \\
+  Earth's rotation       & $\Omega$   & $7.292\times10^{-5}$ rad\,s$^{-1}$ \\
+  Earth radius           & $a$        & $6.371\times10^{6}$ m  \\
+  Reference pressure     & $p_0$      & $10^{5}$ Pa            \\
+  Reference Coriolis     & $f_0$      & $f(45^\circ)\approx 1.031\times10^{-4}$ rad\,s$^{-1}$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\section{Thermodynamic Relations}
+
+\textbf{Potential temperature} (\texttt{coords.theta\_from\_T}):
+\begin{equation}
+\theta = T\left(\frac{p_0}{p}\right)^{\!\kappa}.
+\end{equation}
+
+\textbf{Hydrostatic balance in Exner coordinates}
+(\texttt{coords.dpi\_phi\_from\_theta}):
+\begin{equation}
+\boxed{\;\frac{\partial\Phi}{\partial\pi}=-c_p\,\theta\;}
+\label{eq:hydrostatic}
+\end{equation}
+which is the dry-static-energy form of hydrostatic balance.  It
+provides the \emph{vertical} link between $\Phi$ and $\theta$ that
+will close the inversion.
+
+\textbf{Coriolis} (\texttt{coords.coriolis}):
+\begin{equation}
+f(\phi)=2\Omega\sin\phi,\qquad
+\frac{\mathrm{d}f}{\mathrm{d}y}=\frac{2\Omega\cos\phi}{a}\equiv\beta.
+\end{equation}
+
+\section{Non-uniform Vertical Finite Differences}
+\label{sec:fd}
+
+ERA5 levels are unevenly spaced in $\pi$; we therefore use
+three-point Lagrange stencils.  At an interior node $\pi_0$ with
+neighbours $\pi_m<\pi_0<\pi_p$ and spacings $h_m=\pi_0-\pi_m$,
+$h_p=\pi_p-\pi_0$:
+
+\begin{equation}
+\frac{\partial f}{\partial\pi}\Big|_{\pi_0}\!\approx\!
+  -\frac{h_p}{h_m(h_m+h_p)}f_m
+  +\frac{h_p-h_m}{h_m h_p}f_0
+  +\frac{h_m}{h_p(h_m+h_p)}f_p,
+\label{eq:fd1}
+\end{equation}
+\begin{equation}
+\frac{\partial^2 f}{\partial\pi^2}\Big|_{\pi_0}\!\approx\!
+  \frac{2}{h_m(h_m+h_p)}f_m
+  -\frac{2}{h_m h_p}f_0
+  +\frac{2}{h_p(h_m+h_p)}f_p.
+\label{eq:fd2}
+\end{equation}
+At the two boundaries we substitute the second-order one-sided
+analogues.  Assembling the stencils into a matrix gives
+\begin{equation}
+\frac{\partial f}{\partial\pi}=\mathbf{D}_{1}\,f,\qquad
+\frac{\partial^{2} f}{\partial\pi^{2}}=\mathbf{D}_{2}\,f,
+\qquad \mathbf{D}_{1},\mathbf{D}_{2}\in\R^{K\times K}.
+\end{equation}
+These matrices are precomputed once in
+\texttt{coords.D1\_MAT}, \texttt{coords.D2\_MAT}.
+
+\section{Ertel Potential Vorticity}
+
+The hydrostatic Ertel PV reads
+\begin{equation}
+Q = -g(\zeta+f)\frac{\partial\theta}{\partial p}.
+\end{equation}
+Substituting \cref{eq:hydrostatic} and the chain rule
+$\partial/\partial p=(\kappa\pi/p)\,\partial/\partial\pi$ gives the
+$(\psi,\Phi)$-only form used throughout the code:
+
+\begin{keybox}[Ertel PV in psi-Phi form]
+\begin{equation}
+\boxed{\;
+Q(\psi,\Phi)\;=\;g\,(\Lap\psi+f)\cdot
+            \underbrace{\frac{\kappa\pi}{p\,c_p}}_{\equiv\,\mathrm{coeff}(p)}\cdot
+            \frac{\partial^{2}\Phi}{\partial\pi^{2}}\times 10^{6}\;[\PVU]\;}
+\label{eq:Q}
+\end{equation}
+\end{keybox}
+
+\noindent The factor $10^{6}$ converts SI units to PVU.  Equation
+\cref{eq:Q} is implemented \emph{verbatim} in
+\texttt{forward.ertel\_q\_sh} (Listing~\ref{lst:ertel_q_sh}).
+
+\section{Linearization about a Mean State}
+\label{sec:linearization}
+
+Decompose $\psi=\bpsi+\dpsi$, $\Phi=\bPhi+\dPhi$ and Taylor-expand
+\cref{eq:Q} to first order, retaining only $\mathcal{O}(\delta)$ terms.
+After cancellation of the mean contribution $\bq=Q(\bpsi,\bPhi)$:
+
+\begin{keybox}[Linearized Ertel PV]
+\begin{equation}
+\boxed{\;
+\dq \;=\; g\cdot\mathrm{coeff}(p)\,\Bigl[\,
+   \underbrace{(f+\Lap\bpsi)}_{\Aavo}
+        \frac{\partial^{2}\dPhi}{\partial\pi^{2}} \;+\;
+   \underbrace{\frac{\partial^{2}\bPhi}{\partial\pi^{2}}}_{\Bstb}\,
+        \Lap\dpsi \,\Bigr]\times 10^{6}\;}
+\label{eq:dq_lin}
+\end{equation}
+\end{keybox}
+
+\noindent The two basic-state coefficients
+\begin{equation}
+\Aavo(\mathbf{x})=f+\Lap\bpsi=f+\bzeta,\qquad
+\Bstb(\mathbf{x})=\frac{\partial^{2}\bPhi}{\partial\pi^{2}}
+\end{equation}
+have natural meteorological interpretations: $\Aavo$ is the
+\emph{absolute vorticity} of the mean state, and $\Bstb$ is
+proportional to the mean \emph{static stability} (via
+\cref{eq:hydrostatic}, $\Bstb=-c_p\,\partial\bar\theta/\partial\pi$).
+
+\section{Closure: Coupling $\dPhi$ to $\dpsi$}
+\label{sec:closure}
+
+Equation \cref{eq:dq_lin} is one equation in two unknowns
+$(\dpsi,\dPhi)$.  Closure requires a \textbf{balance constraint}.
+Two are used in the code:
+
+\paragraph{(a) Nonlinear Charney balance} (the mean-state balance
+of the nonlinear Picard inversion):
+\begin{equation}
+\Lap\Phi \;=\; \nabla\!\cdot\!\bigl(f\nabla\psi\bigr)
+            \;+\;2\,J(\psi_{x},\psi_{y}).
+\label{eq:charney}
+\end{equation}
+
+\paragraph{(b) Linear $f_0$-plane balance}
+(the linear closure referenced by the spherical-harmonic
+BALNC port, \Cref{chap:wu_balnc}):
+\begin{equation}
+\boxed{\;\dPhi \approx f_0\,\dpsi\;\Longrightarrow\;
+        \frac{\partial^{2}\dPhi}{\partial\pi^{2}}\approx
+        f_0\,D_2\,\dpsi\;}
+\label{eq:f0_balance}
+\end{equation}
+Substituting \cref{eq:f0_balance} into \cref{eq:dq_lin} yields a
+linear operator that acts \emph{only on $\dpsi$}:
+\begin{equation}
+\boxed{\;
+\dq = g\,\mathrm{coeff}(p)\,\bigl[
+   \Aavo\,f_0\,D_2\,\dpsi \;+\;
+   \Bstb\,\Lap\,\dpsi \bigr]\times 10^{6}\;}
+\label{eq:F_op}
+\end{equation}
+
+\noindent Equation \cref{eq:F_op} was the central object of the
+legacy spherical-harmonic piecewise solvers (a \emph{direct} variant
+dropped the first term; an \emph{LGMRES} variant kept both).  Those
+Family-B solvers have since been retired; the relation survives here
+as the linear closure cited by the SH BALNC port (\Cref{chap:wu_balnc}).
+
+\begin{warnbox}[Caveat of the f0-plane closure]
+$\dPhi\approx f_0\dpsi$ is the geostrophic-balance approximation at a
+reference latitude.  It under-estimates the geopotential anomaly at
+upper levels by a factor that depends on the meridional structure of
+$\dpsi$.  This is the principal source of the
+\emph{$\approx 0.1\times$ amplitude bias} of the SH port vs.\ the Wu
+Fortran reference (\Cref{chap:wu_pipeline}).
+\end{warnbox}

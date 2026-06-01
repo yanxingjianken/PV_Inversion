@@ -27,21 +27,32 @@ core.*
 data/era5/*.nc
 data/clim/*.nc
 data/wu_in/*
+!data/wu_in/.gitkeep
 data/wu_out/*
+!data/wu_out/.gitkeep
 data/wu_bin/
+data/wu_python_out/*
 data/figs/*.png
 data/figs/*.pdf
 
-# Allow the canonical reference figure for the README
+# Allow canonical reference figures
 !data/figs/fig8_replica.png
 
-# Per-step diagnostic figures (regenerable)
-steps/**/*.png
-steps/**/*.pdf
+# Stray diagnostic PNGs at repo root (should live in step dirs)
+/*.png
 
-# SH-track artefacts (Phase 6, local A/B only)
+# Compiled Fortran in root fortran/ (moved to wu/fortran/)
+fortran/
+
+# SH-track artefacts (Phase 6, local A/B only — do NOT commit)
 data/sh_*/
 data/figs/fig8_replica_sh.*
+data/figs/ab_*.png
+data/figs/ab_*.pdf
+notebooks/
+steps/11_sh_solve/
+steps/12_fig8_sh/
+sh_solver.py
 
 # Legacy reference dumps
 inv3d_ca2025/*.out

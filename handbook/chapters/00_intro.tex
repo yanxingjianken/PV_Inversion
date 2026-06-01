@@ -1,0 +1,105 @@
+\chapter{Introduction and Overview}
+\label{chap:intro}
+
+\section{Purpose of this Handbook}
+
+This handbook documents \textbf{piecewise potential-vorticity inversion}
+(PPVI) for atmospheric blocking, as implemented in
+\texttt{pv\_inversion/}.  The goal of the project is to reproduce the
+diagnostic of Davis et~al.\ (2022, \emph{J.\ Climate}, their Fig.~8) for
+the 2025-01-08 California blocking event: partition the upper-level PV
+anomaly into vertical pieces, invert each piece to a balanced
+circulation, and quantify how each piece advects PV to sustain the
+block.
+
+The repository carries \textbf{two independent inversion tracks} that
+share a common ERA5 data-preparation front end:
+
+\begin{enumerate}\setlength\itemsep{2pt}
+  \item the \textbf{Wu Fortran reference} (\texttt{pv\_inversion/wu/}) ---
+        W.~Wu's finite-difference successive-over-relaxation (SOR)
+        solver (\texttt{pvpialln\_94UV.f}, \texttt{qinvert21\_94.f},
+        \texttt{qinvertp21\_94.f}).  This track \textbf{works}: it
+        reproduces the Davis 2022 Fig.~8 diagnostic end-to-end and is
+        therefore treated as the \emph{benchmark}.  It is the subject of
+        \textbf{Part~I} (\Cref{chap:wu_solver,chap:wu_pipeline}), where
+        every pass is illustrated with the plot it generates.
+  \item the \textbf{Python spherical-harmonic (SH) port}
+        (\texttt{pv\_inversion/sh/}) --- a faithful re-implementation of
+        Wu's non-dimensional balance system on the full-hemisphere SH
+        grid, built on \texttt{pvtend.sh\_ops}.  This is the subject of
+        \textbf{Part~II} (\Cref{chap:sh,chap:forward,chap:wu_balnc}).  It
+        documents the mathematics, the operator mapping, and the
+        \emph{current state} of the port, whose total-balance pass does
+        not yet converge.
+\end{enumerate}
+
+\begin{keybox}[What was retired]
+Two earlier SH solvers --- a one-step \emph{Direct Spectral Solve} and
+an \emph{LGMRES + linearized-Charney} solver (collectively
+``Family-B'') --- have been removed from the codebase and from this
+handbook.  Their governing closure (the linear $f_0$-plane balance) is
+retained in \Cref{sec:closure} because the SH BALNC port still cites it.
+\end{keybox}
+
+\section{Notation Cheat-Sheet}
+
+\begin{center}
+\begin{tabular}{ll}
+  \toprule
+  Symbol & Meaning \\
+  \midrule
+  $\psi$, $\Phi$ & streamfunction (m$^2$\,s$^{-1}$), geopotential (m$^2$\,s$^{-2}$) \\
+  $\bpsi$, $\bPhi$ & climatological mean (basic) state \\
+  $\dpsi=\psi-\bpsi$, $\dPhi=\Phi-\bPhi$ & anomalies \\
+  $q$ & Ertel potential vorticity (PVU = $10^{-6}\,$K\,m$^2$\,kg$^{-1}$\,s$^{-1}$) \\
+  $\bq$, $\dq=q-\bq$ & mean and anomalous PV \\
+  $\zeta=\Lap\psi$ & relative vorticity \\
+  $f=2\Omega\sin\phi$, $f_0=f(45^\circ)$ & Coriolis parameter, reference value \\
+  $\pi=(p/p_0)^{\kappa}$ & Exner function ($p_0=10^{5}$ Pa, $\kappa=R/c_p$) \\
+  $\theta=T(p_0/p)^{\kappa}$ & potential temperature \\
+  $\Aavo=f+\bzeta$, $\Bstb=\partial^2\bPhi/\partial\pi^2$ & avorticity, static stability proxy \\
+  $\Lap$, $\Lapinv$ & horizontal Laplacian and its spectral inverse \\
+  $D_1, D_2$ & first/second-derivative matrices in $\pi$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+A more complete glossary appears in \Cref{app:notation}.
+
+\section{Quick Tour of the Code}
+
+\paragraph{Part~I --- the Wu Fortran reference
+(\texttt{pv\_inversion/wu/}).}
+\begin{center}\small
+\begin{tabular}{lll}
+  \toprule
+  Component & Purpose & Reference \\
+  \midrule
+  \texttt{wu/fortran/pvpialln\_94UV.f}  & Pass A/B: Ertel PV + balanced $\psi$, $\Phi$ & \Cref{chap:wu_solver} \\
+  \texttt{wu/fortran/qinvert21\_94.f}   & Pass C: total balanced inversion (BALNC)    & \Cref{chap:wu_solver} \\
+  \texttt{wu/fortran/qinvertp21\_94.f}  & Pass D: piecewise perturbation (BALP)       & \Cref{chap:wu_solver} \\
+  \texttt{wu/steps/05\ldots10/}         & the step-by-step pipeline + plots           & \Cref{chap:wu_pipeline} \\
+  \texttt{config.py}                    & grid, levels, solver parameters             & \Cref{chap:wu_solver} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Part~II --- the Python SH port
+(\texttt{pv\_inversion/sh/}).}
+\begin{center}\small
+\begin{tabular}{lll}
+  \toprule
+  Module & Purpose & Reference \\
+  \midrule
+  \texttt{sh\_ppvi/coords.py}    & vertical Exner grid, $D_1, D_2$, Coriolis   & \Cref{chap:math} \\
+  \texttt{pvtend.sh\_ops}        & SH gradient/Laplacian/Helmholtz operators   & \Cref{chap:sh} \\
+  \texttt{sh\_ppvi/pv\_calc.py}  & Ertel PV diagnostic                         & \Cref{chap:forward} \\
+  \texttt{sh\_ppvi/nondim.py}    & Wu non-dimensional scales                   & \Cref{chap:wu_balnc} \\
+  \texttt{sh\_ppvi/sor.py}       & $BB,BH,BL$ vertical stencil                 & \Cref{chap:wu_balnc} \\
+  \texttt{sh\_ppvi/wu\_ops.py}   & Wu-scaled SH operator wrappers              & \Cref{chap:wu_balnc} \\
+  \texttt{sh\_ppvi/balnc.py}     & coupled BALNC ($H$--$\psi$) Picard solve    & \Cref{chap:wu_balnc} \\
+  \texttt{sh\_ppvi/balp.py}      & piecewise BALP (pending convergence)        & \Cref{chap:wu_balnc} \\
+  \bottomrule
+\end{tabular}
+\end{center}

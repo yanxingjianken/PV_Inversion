@@ -1,7 +1,22 @@
-# Wu/Davis Piecewise PV Inversion (PPVI)
+# Piecewise PV Inversion (PPVI) — Wu (Fortran) vs SH (spectral) tracks
 
-Replicate Davis et al. (2022, J. Climate, Fig 8) for atmospheric blocking events
-using the Wu/Davis F77 piecewise potential vorticity inversion (PPVI) solver.
+Replicate Davis et al. (2022, J. Climate, Fig 8) for atmospheric blocking
+events using **two parallel inversion backends**:
+
+- **`wu/`** — the Wu/Davis F77 SOR-based piecewise PV inversion on a finite
+  σ-coordinate box (the reference; bit-for-bit reproduction of Davis 2022).
+- **`sh/`** — a spectral-vertical (SV) PPVI on the full NH spherical-harmonic
+  grid. Diagonalised per SH degree via a 10×10 LU per wavenumber.
+
+The two methods share data preparation (`shared_steps/`) and are compared
+side-by-side in `compare/`.
+
+> **Physics caveat.** The SH solver is currently an **approximation** of the
+> Wu balance: it uses the β-plane thermal-wind link `δΦ ≈ f₀·δψ` and
+> spatial-mean A,B per level to keep the system diagonal in spectral space.
+> Empirically this produces induced winds ~10× weaker than Wu (see
+> `data/figs/compare_v250.png`). See the TODO block in
+> `sh/sh_ppvi/invert_piece.py` for the upgrade path.
 
 ## Minimal Requirements
 
@@ -13,29 +28,64 @@ using the Wu/Davis F77 piecewise potential vorticity inversion (PPVI) solver.
 ## Quick Start
 
 ```bash
-# 1. Edit config.py — event date, region, resolution, clim window
+# 1. Edit root config.py — event date, region, resolution, clim window
 vim config.py
 
-# 2. Run the full pipeline
-bash run_all.sh
+# 2. Shared data prep (download ERA5 + climatology + Wu grid files)
+for s in shared_steps/0[1-4]_*/; do
+    micromamba run -n blocking python "$s"/*.py
+ done
 
-# 3. View the canonical reproduction figure
-xdg-open data/figs/fig8_replica.png
+# 3a. Wu Fortran track  →  wu/steps/10_fig8/fig8_replica.png
+for s in wu/steps/0[5-9]_*/ wu/steps/10_*/; do
+    micromamba run -n blocking python "$s"/*.py
+done
+
+# 3b. SH-PPVI spectral track  →  sh/steps/15_fig8_sh_ppvi/fig8_sh_ppvi.png
+for s in sh/steps/1[3-5]_*/; do
+    micromamba run -n blocking python "$s"/*.py
+done
+
+# 4. Cross-method comparison figures  →  data/figs/compare_*.png
+for f in compare/compare_*.py; do
+    micromamba run -n blocking python "$f"
+done
 ```
+
+Each pipeline pulls config from a thin wrapper (`wu/config.py`, `sh/config.py`)
+that re-exports the root `config.py`. `sh/config.py` additionally defines
+`F0_DEG = 45.0` for the β-plane reference latitude.
 
 ## Workflow
 
 ```mermaid
 graph TD
-    S01["01_download<br/>ERA5 CLIM_WINDOW_DAYS<br/>+ polar map"] --> S02["02_grid<br/>σ-levels<br/>+ case domain"]
-    S02 --> S03["03_climatology<br/>running-mean<br/>+ anomalies"]
-    S03 --> S04["04_write_grid<br/>NetCDF → Wu .grid<br/>(10F8.1, merged)"]
-    S04 --> S05["05_wu_pass_ab<br/>Pass A: PV+ψ (clim)<br/>Pass B: PV+ψ (event)"]
-    S05 --> S06["06_wu_pass_c<br/>Pass C: total<br/>balanced inversion"]
-    S06 --> S07["07_wu_pass_d<br/>Pass D: 3 pieces<br/>ψ′ per piece"]
-    S07 --> S08["08_parse_outputs<br/>ERA5 Ertel PV<br/>+ Wu Q vs PVU"]
-    S08 --> S09["09_pv_advection<br/>−(u′·∂q/∂x + v′·∂q/∂y)<br/>per piece"]
-    S09 --> S10["10_fig8<br/>3-panel cartopy<br/>PNG + PDF"]
+    subgraph SHARED ["shared_steps/  —  common data prep"]
+        S01["01_download<br/>ERA5 CLIM_WINDOW_DAYS"] --> S02["02_grid<br/>σ-levels + case domain"]
+        S02 --> S03["03_climatology<br/>running-mean + anomalies"]
+        S03 --> S04["04_write_grid<br/>NetCDF → Wu .grid"]
+    end
+    subgraph WU ["wu/steps/  —  Fortran SOR pipeline"]
+        W05["05_wu_pass_ab<br/>Pass A/B<br/>PV+ψ (clim/event)"] --> W06["06_wu_pass_c<br/>Pass C: total balance"]
+        W06 --> W07["07_wu_pass_d<br/>Pass D: 3 pieces<br/>ψ′ per piece"]
+        W07 --> W08["08_parse_outputs<br/>NetCDF + Ertel PV"]
+        W08 --> W09["09_pv_advection"]
+        W09 --> W10["10_fig8<br/>fig8_replica.{png,pdf}"]
+    end
+    subgraph SH ["sh/steps/  —  spectral-vertical pipeline"]
+        H13["13_ppvi_mean<br/>invert_full → ψ̄, Φ̄"] --> H14["14_ppvi_pieces<br/>SV solve per piece"]
+        H14 --> H15["15_fig8_sh_ppvi<br/>per-panel cbar PNG/PDF"]
+    end
+    subgraph CMP ["compare/  —  cross-method diagnostics"]
+        C1["compare_v250.py<br/>3×3 maps + RMS"]
+        C2["compare_zonal_V.py<br/>zonal RMS vs latitude"]
+    end
+    S04 --> W05
+    S04 --> H13
+    W07 --> C1
+    H14 --> C1
+    W07 --> C2
+    H14 --> C2
 ```
 
 ## Step-by-Step
@@ -157,14 +207,29 @@ Edit **one file**: `config.py`. All step scripts import from it.
 
 ```
 pv_inversion/
-├── config.py           ← All parameters
-├── run_all.sh          ← One-command pipeline
-├── steps/              ← 01_download … 10_fig8
-├── fortran/            ← Wu F77 sources (sources only; binaries built in Step 05)
-├── data/               ← All I/O
-│   ├── era5/   clim/   wu_in/   wu_out/   wu_bin/   figs/
-└── archive/            ← Reference (locked, never edited)
-    ├── talia_tutorial/ ppvi/ case_jan2025_CA/
+├── config.py                    ← Root shared parameters
+├── shared_steps/                ← 01_download … 04_write_grid (shared inputs)
+├── wu/                          ← Wu Fortran SOR pipeline (self-contained)
+│   ├── config.py                ← Thin wrapper (re-exports root config)
+│   ├── fortran/                 ← F77 sources (binaries built in Step 05)
+│   └── steps/                   ← 05_wu_pass_ab … 10_fig8
+│       └── 10_fig8/fig8_replica.{png,pdf}
+├── sh/                          ← SH-PPVI spectral-vertical pipeline
+│   ├── config.py                ← Wrapper + F0_DEG = 45.0
+│   ├── sh_ppvi/                 ← Python package (operators, charney, invert_*, tests)
+│   └── steps/                   ← 13_ppvi_mean, 14_ppvi_pieces, 15_fig8_sh_ppvi
+│       └── 15_fig8_sh_ppvi/fig8_sh_ppvi.{png,pdf}
+├── compare/                     ← Cross-method comparison scripts
+│   ├── compare_v250.py          ← Wu | SH | diff, 3×3 maps, RMS table
+│   ├── compare_zonal_V.py       ← Zonal RMS vs latitude, per piece
+│   └── ab_compare_wu_vs_sh.py   ← Legacy A/B test script
+├── data/                        ← All shared I/O (NetCDFs)
+│   ├── era5/  clim/  wu_in/  wu_out/  sh_ppvi/
+│   └── figs/                    ← Cross-method figures only (per-method figs live next to scripts)
+└── archive/                     ← Reference + retired material (never edited)
+    ├── old_sh_mvp_steps/        ← Old SH MVP (steps 11–12, sh_solver.py)
+    ├── old_sh_mvp_figs/         ← Old SH MVP figures
+    ├── talia_tutorial/  ppvi/  case_jan2025_CA/
 ```
 
 ## Known Limits
@@ -180,6 +245,39 @@ pv_inversion/
 - **Pole handling**: the Wu solver uses a rigid-lid frame and inflates
   gradients near the boundary. A future SH-based track will handle the pole
   analytically via spherical harmonics.
+
+## SH-PPVI (spectral-vertical) backend  —  current performance
+
+The SH track in `sh/` solves the linearised piecewise system in spherical
+harmonic space, exploiting the fact that the horizontal Laplacian is diagonal
+in SH (eigenvalue `λ_l = −l(l+1)/R²`). For each SH degree the vertical system
+collapses to a 10×10 LU factorisation; no Picard iteration.
+
+**Two simplifying approximations are made vs the Wu reference:**
+
+1. **β-plane thermal-wind link**  `δΦ ≈ f₀·δψ` at `f₀ = 2Ω·sin(45°)`.
+   Drops the full nonlinear-balance cross-term that Wu retains in
+   `wu/fortran/qinvertp21_94.f` (subroutine `BALP`, lines 308–389).
+2. **Spatial-mean A, B per level** (`A[k]`, `B[k]` are scalars, not 2-D fields).
+   Wu uses spatially-varying `AVO(i,j,k)`, `STB(i,j,k)`. The mean reduction is
+   what makes the operator diagonal in SH space.
+
+**Empirical impact** (see `compare/compare_zonal_V.py` output):
+
+| Latitude | Piece  |   Wu RMS V₂₅₀ |   SH RMS V₂₅₀ | SH / Wu |
+|----------|--------|---------------|---------------|---------|
+| 70.5°N   | upper  |    73.8 m/s   |    11.9 m/s   |  0.16   |
+| 45°N     | upper  |    58.1 m/s   |     6.7 m/s   |  0.12   |
+| 25.5°N   | upper  |    80.6 m/s   |     3.5 m/s   |  0.04   |
+| 45°N     | middle |     3.5 m/s   |    0.07 m/s   |  0.02   |
+| 45°N     | lower  |     4.3 m/s   |    0.01 m/s   |  0.002  |
+
+SH-PPVI is consistently weaker — **not** specifically improved at the pole.
+The SH backend does have one structural advantage: it is solved on the
+full NH grid (0–90°N), avoiding Wu's lateral BC=0 artefacts at the patch
+edge (85.5°N), but the magnitude under-prediction dominates. See the TODO
+block in `sh/sh_ppvi/invert_piece.py` for the upgrade plan (relax
+level-mean A,B; relax β-plane δΦ).
 
 ## Reference
 

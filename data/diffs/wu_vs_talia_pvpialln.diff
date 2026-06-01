@@ -1,0 +1,56 @@
+--- archive/talia_tutorial/inv3d/pvpialln_94UV.f	2026-05-28 12:59:42.916527820 -0400
++++ wu/fortran/pvpialln_94UV.f	2026-05-28 14:33:46.596009570 -0400
+@@ -12,8 +12,8 @@
+ C  **  THE INPUT FOR  THE PROGRAM "QINVERTPNEW.FOR"       9/27/91  C.-C. WU
+ 
+ 	PARAMETER (NW=10)
+-        PARAMETER (NY=21)
+-        PARAMETER (NX=45)
++        PARAMETER (NY=51)
++        PARAMETER (NX=87)
+ 	REAL U(NY,NX,NW),V(NY,NX,NW),TH(NY,NX,NW),Q(NY,NX,NW),
+      +	     FC(NY),AP(NY),APM(NY),APP(NY),MI,LL,PII,HDR(8),VB(NX,4),
+      +	     VOR(NY,NX,NW),STB(NY,NX,NW),DUDY,DVDX,DTHX(NY,NX,NW),
+@@ -46,7 +46,7 @@
+ C  *******************
+ 
+ 	CHARACTER*80 F(50),INFILES(50)
+-	DATA PR/ 1.0, 0.85, 0.7, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1/
++        DATA PR/ 1.0, 0.925, 0.85, 0.7, 0.6, 0.5, 0.4, 0.3, 0.25, 0.2/
+ 
+ C  **  add F(3) that writes the output for H and Psi   Wu 9/30/91
+ 
+@@ -55,8 +55,8 @@
+ c	TYPE*,'FILES(1)? IN=(H,TH,U,V)'
+ c	READ (5,'(a)')F(1)
+ 
+-	TYPE*,'FILES(2)? OUT=(Thbm,thtm and Qm)'
+-	TYPE*,'FILES(3)? OUT=(Hm and Psim)'
++	PRINT*,'FILES(2)? OUT=(Thbm,thtm and Qm)'
++	PRINT*,'FILES(3)? OUT=(Hm and Psim)'
+ 
+ 	READ (5,'(a)')(F(I),I=2,3)
+        
+@@ -79,18 +79,18 @@
+ 
+ c  ** read the total numbers the output halfdays
+ 
+-        type *, 'total number of output halfdays :(nhalfdayo)'
++        print *, 'total number of output halfdays :(nhalfdayo)'
+          read (5,*) nhalfdayo
+ 
+          do 888 nn=1,nhalfdayo
+ 
+ c  ** read the output halfday
+ 
+-        type *, 'the output halfday'
++        print *, 'the output halfday'
+          read (5,*) nhalfout(nn)
+ 
+-	TYPE*,'FILES(4+2*(nn-1))? OUT=(Thb,tht,Q )'
+-	TYPE*,'FILES(5+2*(nn-1))? OUT=(H and psi)'
++	PRINT*,'FILES(4+2*(nn-1))? OUT=(Thb,tht,Q )'
++	PRINT*,'FILES(5+2*(nn-1))? OUT=(H and psi)'
+ 
+ 	READ (5,'(a)')(F(I+2*(nn-1)),I=4,5)
+ 

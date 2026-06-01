@@ -1,0 +1,150 @@
+\documentclass[11pt,letterpaper]{report}
+
+% ─── packages ────────────────────────────────────────────────────────────────
+\usepackage[margin=1in]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm,bm}
+\usepackage{mathtools}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{tcolorbox}
+\tcbuselibrary{listings,skins,breakable}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{enumitem}
+
+% ─── hyperref colors ─────────────────────────────────────────────────────────
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=teal!60!black,
+  urlcolor=magenta!60!black,
+  pdftitle={SH-PPVI Handbook: Piecewise Potential Vorticity Inversion in Spherical Harmonics},
+  pdfauthor={x\_yan},
+}
+
+% ─── code listings ───────────────────────────────────────────────────────────
+\definecolor{codebg}{gray}{0.97}
+\definecolor{codekw}{rgb}{0.13,0.29,0.53}
+\definecolor{codestr}{rgb}{0.58,0.0,0.13}
+\definecolor{codecom}{rgb}{0.25,0.50,0.25}
+\lstdefinelanguage{Python}{
+  keywords={def,class,import,from,as,return,if,elif,else,for,while,in,not,and,or,
+           is,None,True,False,lambda,try,except,finally,raise,with,pass,break,continue,
+           yield,global,nonlocal,assert,del},
+  keywordstyle=\color{codekw}\bfseries,
+  comment=[l]{\#},
+  commentstyle=\color{codecom}\itshape,
+  morestring=[b]",
+  morestring=[b]',
+  stringstyle=\color{codestr},
+  sensitive=true,
+}
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  framerule=0pt,
+  rulecolor=\color{codebg},
+  showstringspaces=false,
+  breaklines=true,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  xleftmargin=1.5em,
+  framexleftmargin=1em,
+}
+
+% ─── math shorthands ─────────────────────────────────────────────────────────
+\newcommand{\bpsi}{\bar{\psi}}
+\newcommand{\bPhi}{\bar{\Phi}}
+\newcommand{\bq}{\bar{q}}
+\newcommand{\bu}{\bar{u}}
+\newcommand{\bv}{\bar{v}}
+\newcommand{\bzeta}{\bar{\zeta}}
+\newcommand{\dpsi}{\delta\psi}
+\newcommand{\dPhi}{\delta\Phi}
+\newcommand{\dq}{q^{\prime}}
+\newcommand{\dzeta}{\delta\zeta}
+\newcommand{\du}{\delta u}
+\newcommand{\dv}{\delta v}
+\newcommand{\Lap}{\nabla^{2}}
+\newcommand{\Lapinv}{\nabla^{-2}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\PVU}{\,\mathrm{PVU}}
+\newcommand{\Aavo}{A_{\mathrm{avo}}}
+\newcommand{\Bstb}{B_{\mathrm{stb}}}
+\DeclareMathOperator{\rmse}{RMSE}
+\DeclareMathOperator{\corr}{corr}
+
+% ─── theorem environments ────────────────────────────────────────────────────
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[chapter]
+\newtheorem{proposition}{Proposition}[chapter]
+\newtheorem{algorithm}{Algorithm}[chapter]
+
+% ─── boxes ───────────────────────────────────────────────────────────────────
+\newtcolorbox{keybox}[1][]{
+  enhanced, breakable, colback=blue!4, colframe=blue!50!black,
+  title=#1, fonttitle=\bfseries, sharp corners, boxrule=0.6pt,
+}
+\newtcolorbox{warnbox}[1][]{
+  enhanced, breakable, colback=red!4, colframe=red!60!black,
+  title=#1, fonttitle=\bfseries, sharp corners, boxrule=0.6pt,
+}
+
+% ─── title ───────────────────────────────────────────────────────────────────
+\title{
+  \vspace{-1cm}
+  \Huge\bfseries Piecewise PV Inversion Handbook \\
+  \LARGE The Wu Fortran Reference (Benchmark) \\
+  \LARGE and the Python Spherical-Harmonic Port \\
+  \vspace{0.5cm}
+  \large \emph{For the 2025-01-08 California Blocking Case Study}
+}
+\author{
+  \texttt{x\_yan} \\
+  \small\texttt{pv\_inversion/}
+}
+\date{\today}
+
+% ────────────────────────────────────────────────────────────────────────────
+\begin{document}
+\maketitle
+\tableofcontents
+\listoffigures
+\listoftables
+
+\input{chapters/00_intro.tex}
+
+\part{Theory and the Wu Fortran Reference (Benchmark)}
+\input{chapters/01_math_foundations.tex}
+\input{chapters/wu_solver.tex}
+\input{chapters/wu_pipeline.tex}
+
+\part{The Python Spherical-Harmonic Port}
+\input{chapters/02_sh_operators.tex}
+\input{chapters/03_forward_pv.tex}
+\input{chapters/09_wu_nondim_balnc.tex}
+\input{chapters/08_conclusion.tex}
+%
+
+\appendix
+\input{chapters/A_notation.tex}
+\input{chapters/B_api.tex}
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}

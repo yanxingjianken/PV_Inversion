@@ -1,0 +1,97 @@
+\chapter{Spherical-Harmonic Operators}
+\label{chap:sh}
+
+The horizontal operators ($\nabla$, $\Lap$, $\Lapinv$, Helmholtz,
+Jacobian) are computed via \textbf{spherical-harmonic} (SH) transforms
+delegated to \texttt{pvtend.sh\_ops}.  This chapter documents the
+wrappers in \texttt{sh\_ppvi.operators}, in particular how the
+hemispheric ERA5 grid is extended to a full sphere by
+\emph{parity mirroring}.
+
+\section{Hemispheric Grid and Parity Mirroring}
+
+The working grid is a Northern-Hemisphere lat-lon patch
+($10.5^\circ$N--$85.5^\circ$N, $-169.5^\circ$E--$-40.5^\circ$E,
+$\Delta\phi=\Delta\lambda=1.5^\circ$).  SH transforms, however,
+require a \emph{full sphere}.  The function
+\texttt{parity\_mirror(field, lat, kind)} extends a NH field across
+the equator with prescribed symmetry:
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{kind="scalar"}: even reflection,
+      $f(-\phi,\lambda)=+f(\phi,\lambda)$ —
+      used for $\psi$, $\Phi$, $q$;
+\item \texttt{kind="v"} (vector meridional component):
+      odd reflection,
+      $f(-\phi,\lambda)=-f(\phi,\lambda)$ — used for the RHS of
+      divergence-like Poisson problems.
+\end{itemize}
+
+\noindent After the spectral operation the SH field is inverse-transformed
+back to grid space and restricted to the NH.  This is hidden inside
+each wrapper.
+
+\section{Horizontal Operators}
+
+All wrappers act level-by-level on $(K,n_{\text{lat}},n_{\text{lon}})$
+arrays.
+
+\paragraph{Gradient.} (\texttt{operators.gradient})
+\begin{equation}
+\frac{\partial f}{\partial x}=\frac{1}{a\cos\phi}\frac{\partial f}{\partial\lambda},
+\qquad
+\frac{\partial f}{\partial y}=\frac{1}{a}\frac{\partial f}{\partial\phi}.
+\end{equation}
+
+\paragraph{Laplacian.} (\texttt{operators.laplacian})
+\begin{equation}
+\Lap f = \frac{1}{a^{2}\cos^{2}\phi}\frac{\partial^{2}f}{\partial\lambda^{2}}
+       + \frac{1}{a^{2}\cos\phi}\frac{\partial}{\partial\phi}\!
+         \left(\cos\phi\,\frac{\partial f}{\partial\phi}\right).
+\end{equation}
+In spectral space, $\widehat{\Lap f}_{l,m}=-\lambda_l\,\hat f_{l,m}$
+with the eigenvalues
+\begin{equation}
+\lambda_l=\frac{l(l+1)}{a^{2}},\qquad l=0,1,2,\ldots
+\label{eq:laplacian_eigs}
+\end{equation}
+
+\paragraph{Poisson inversion.} (\texttt{operators.laplacian\_inv})
+\begin{equation}
+\Lap\chi=\mathrm{rhs}\;\Longrightarrow\;
+\hat\chi_{l,m}=
+\begin{cases}
+  -\hat{\mathrm{rhs}}_{l,m}/\lambda_l, & l\geq 1,\\
+  0,                                    & l=0\;\text{(mean-zero gauge)}.
+\end{cases}
+\label{eq:laplacian_inv}
+\end{equation}
+
+\paragraph{Helmholtz decomposition.} (\texttt{operators.helmholtz})
+\begin{equation}
+(u,v) = \nabla^{\perp}\psi + \nabla\chi
+\;\Longleftrightarrow\;
+\psi=\Lapinv\zeta,\quad \chi=\Lapinv\delta,
+\end{equation}
+where $\zeta=\partial v/\partial x-\partial u/\partial y$ and
+$\delta=\partial u/\partial x+\partial v/\partial y$.
+
+\paragraph{Jacobian.} (\texttt{operators.jacobian})
+\begin{equation}
+J(a,b)=\frac{\partial a}{\partial x}\frac{\partial b}{\partial y}
+      -\frac{\partial a}{\partial y}\frac{\partial b}{\partial x}.
+\end{equation}
+
+\paragraph{$\nabla\!\cdot\!(f\nabla\psi)$.} (\texttt{operators.div\_f\_grad})
+Because $f=f(\phi)$ only,
+\begin{equation}
+\nabla\!\cdot\!(f\nabla\psi)=f\Lap\psi+\beta\,\frac{\partial\psi}{\partial y}.
+\end{equation}
+
+\begin{keybox}[Vertical x horizontal separability]
+Every horizontal SH operator acts level-by-level; every vertical
+operator ($D_1$, $D_2$) acts column-by-column.  The full PPVI operator
+\cref{eq:F_op} is therefore a sum of \emph{separable} actions, which
+is what makes a level-mean spectral preconditioner of the vertical
+operator possible.
+\end{keybox}

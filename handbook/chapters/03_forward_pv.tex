@@ -1,0 +1,42 @@
+\chapter{Forward Operator: Ertel PV}
+\label{chap:forward}
+
+Two equivalent implementations of Ertel PV exist in
+\texttt{sh\_ppvi.forward}:
+
+\section{From $(\psi,\Phi)$ — \texttt{ertel\_q\_sh}}
+
+This is the operator we wish to \emph{invert}.  It is
+\cref{eq:Q} verbatim.
+
+\begin{lstlisting}[caption={\texttt{forward.py: ertel\_q\_sh}},label={lst:ertel_q_sh}]
+def ertel_q_sh(psi, Phi, lat, lon):
+    """Q = g * (lap psi + f) * (kappa*pi/(p*cp)) * d^2 Phi/d pi^2 * 1e6
+    Returns PV in PVU (10^-6 K m^2 / kg s)."""
+    zeta  = laplacian(psi, lat, lon)                       # 1/s
+    f     = coriolis(lat)[None, :, None]                   # 1/s
+    D2Phi = d_pi_pi(Phi)                                   # m^2/s^2
+    coeff = (KAPPA * PI_VALS / (PLEVS_PA * CP))[:, None, None]
+    return G * (zeta + f) * coeff * D2Phi * 1.0e6
+\end{lstlisting}
+
+\section{From ERA5 primitives — \texttt{ertel\_q\_from\_uv}}
+
+A second implementation uses ERA5 winds and temperature directly:
+\begin{equation}
+Q=-g\,(\zeta+f)\,\frac{\partial\theta}{\partial p}\times 10^{6}\;[\PVU],
+\end{equation}
+with $\partial\theta/\partial p$ from \texttt{np.gradient} on the
+non-uniform pressure grid.  This serves as a \emph{reference}
+diagnostic when validating the closure between $\bpsi,\bPhi,\theta$.
+
+\begin{warnbox}[Why both?]
+The two formulas differ only by the choice of which hydrostatic
+relation closes them.  \texttt{ertel\_q\_sh} uses
+$\partial\Phi/\partial\pi=-c_p\theta$ and SH vorticity from $\psi$;
+\texttt{ertel\_q\_from\_uv} uses direct $\partial\theta/\partial p$
+and SH vorticity from $(u,v)$.  For a perfectly balanced state the
+two are identical.  The \emph{difference} between them is a useful
+balance diagnostic (compare the Wu\,vs.\,ERA5 PV check of
+\Cref{chap:wu_pipeline}).
+\end{warnbox}
