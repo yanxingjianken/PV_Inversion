@@ -193,3 +193,51 @@ of \Cref{chap:wu_balnc} is measured; at present the SH port reproduces
 the inversion \emph{mathematics} but its total-balance pass does not yet
 converge (\Cref{sec:wu_open}).
 \end{keybox}
+
+\section{SI Output Convention (adopted 2026-06-03)}
+\label{sec:wu_si_output}
+
+The Fortran solvers internally non-dimensionalise using
+$H_{\text{nd}}=H_{\text{phys}}/H_{\text{ND}}$ and
+$\psi_{\text{nd}}=\psi_{\text{file}}/H_{\text{ND}}$ (where
+$\psi_{\text{file}}$ is in units of $10^{5}$\,m$^{2}$\,s$^{-1}$ per
+numeric, and $H_{\text{ND}}=\mathrm{DPI}\cdot\mathrm{THO}/g$), then
+re-dimensionalise on output so that \textbf{output units = input
+units}.  The Fortran-written ASCII files therefore contain:
+\begin{itemize}\setlength\itemsep{0pt}
+  \item $H$ in \emph{metres} (geopotential height $z$);
+  \item $\psi$ in \emph{per-$10^{5}$\,m$^{2}$\,s$^{-1}$} (each numeric
+        value $\times 10^{5}$ gives m$^{2}$\,s$^{-1}$);
+  \item $Q$ (Wu PV) in proprietary pseudo-PVU (ratio $\approx209\times$
+        ERA5 PVU, from the constant
+        $\mathrm{COEF}=10^{2}\!\cdot\!10^{6}\!\cdot\!g\!\cdot\!\kappa\!\cdot\!c_{p}^{3.5}/p_{0}$
+        in \texttt{pvpialln}).
+\end{itemize}
+\noindent To make all \texttt{.nc} outputs directly comparable with
+ERA5, the Python parsing layer (Steps~08--11) applies these conversions:
+\begin{align}
+  \psi\;[\text{m}^{2}\,\text{s}^{-1}] &=
+     \psi_{\text{file}} \times 10^{5}, \\
+  \Phi\;[\text{m}^{2}\,\text{s}^{-2}] &=
+     H_{\text{file}}\;[\text{m}] \times g, \\
+  \text{PV}\;[\text{K}\,\text{m}^{2}\,\text{kg}^{-1}\,\text{s}^{-1}] &=
+     \text{Ertel PV computed in native SI (no $\times10^{6}$ PVU
+     conversion)}.
+\end{align}
+The ERA5 $30$-year climatological PV is read in native SI
+(K\,m$^{2}$\,kg$^{-1}$\,s$^{-1}$) and all advection tendencies are
+stored in SI\,s$^{-1}$ (rather than PVU\,day$^{-1}$).  For readability,
+figures label colour bars in practical units (PVU, PVU\,day$^{-1}$)
+after scaling internally.
+
+\begin{warnbox}[Pass D DPI fix (2026-06-03)]
+\texttt{qinvertp21\_94.f} line~118 previously hardcoded
+$\mathrm{DPI}=50$ (appropriate for $N_{L}=10$ levels) instead of
+computing $\mathrm{DPI}=500/N_{L}=62.5$ (the correct value for the
+$N_{L}=8$ configuration).  This caused a mild inconsistency in the
+non-dimensional PV weighting ($Q_{\text{const}}$, $\mathrm{PI}(k)$,
+$\mathrm{PIF}(k)$) between Passes~A/C and Pass~D.  The line has been
+changed to \texttt{DPI=500./FLOAT(NL)} and the piecewise solver
+recompiled.  The effect on piecewise $\psi$ and $H$ is small
+($\lesssim$ few~\%) but ensures physical consistency.
+\end{warnbox}

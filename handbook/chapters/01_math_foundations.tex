@@ -110,8 +110,9 @@ Q(\psi,\Phi)\;=\;g\,(\Lap\psi+f)\cdot
 \end{keybox}
 
 \noindent The factor $10^{6}$ converts SI units to PVU.  Equation
-\cref{eq:Q} is implemented \emph{verbatim} in
-\texttt{forward.ertel\_q\_sh} (Listing~\ref{lst:ertel_q_sh}).
+\cref{eq:Q} is implemented in both the Wu Python track
+(\texttt{wu\_python/core/pv\_calc.py}, \Cref{chap:wupy_pv}) and the
+Wu Fortran subroutine \texttt{PV\_CALC} (\Cref{chap:wu_solver}).
 
 \section{Linearization about a Mean State}
 \label{sec:linearization}

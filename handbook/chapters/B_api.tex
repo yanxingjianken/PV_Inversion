@@ -39,62 +39,90 @@
       (\texttt{fig8\_replica.\{png,pdf\}}).
 \end{itemize}
 
-\section{Part II --- Python SH port (\texttt{sh/sh\_ppvi/})}
+\section{Part II --- Wu Python finite-difference port (\texttt{wu\_python/})}
 
-\subsection{\texttt{sh\_ppvi.coords}}
+\subsection{\texttt{wu\_python/core/grid.py}}
 \begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{PLEVS\_PA}, \texttt{PI\_VALS}: 10-level pressure / Exner grid.
-\item \texttt{D1\_MAT}, \texttt{D2\_MAT}: $\partial/\partial\pi$,
-      $\partial^2/\partial\pi^2$ matrices; \texttt{d\_pi}, \texttt{d\_pi\_pi}.
-\item \texttt{coriolis(lat)}, \texttt{theta\_from\_T(T)},
-      \texttt{dpi\_phi\_from\_theta(theta)}.
+\item \texttt{FC} --- Coriolis $f$ (NY,), \texttt{A} --- 5-pt Laplacian coeffs (NY,5)
+\item \texttt{AP} --- $\cos\phi$ (NY,), \texttt{DP/DL} --- grid spacings [m]
+\item \texttt{LON2D, LAT2D} --- 2-D meshgrid for plotting
 \end{itemize}
 
-\subsection{\texttt{sh\_ppvi.nondim}}
+\subsection{\texttt{wu\_python/core/nondim.py}}
 \begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{Scales} --- Wu non-dimensional constants
-      (\texttt{DPI, LL, FF, THO, QCONST, UC}, \ldots;
-      \Cref{sec:wu_nondim}).
-\item field transforms \texttt{nondim\_H}, \texttt{nondim\_psi},
-      \texttt{nondim\_q}.
+\item Non-dimensional constants: \texttt{G, CP, P0, KAP, DPI, FF, THO, LL}
+\item \texttt{PI\_WU} --- Wu-scaled Exner function $\Pi_\text{Wu}=C_p(p/p_0)^\kappa/\text{DPI}$
+\item \texttt{BB, BH, BL} --- vertical tridiagonal coefficients (built from PI\_WU)
 \end{itemize}
 
-\subsection{\texttt{sh\_ppvi.sor}}
+\subsection{\texttt{wu\_python/core/fd\_ops.py}}
 \begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{build\_BB\_BH\_BL(pi\_wu)} --- vertical 2nd-derivative
-      stencil (\cref{eq:wu_psi}; \Cref{sec:wu_vertical}).
+\item \texttt{laplacian\_5pt(psi)} --- 5-point FD Laplacian (\ref{eq:laplacian_5pt})
+\item \texttt{relative\_vorticity(U, V)} --- $\zeta = \partial_x v - \partial_y u$
 \end{itemize}
 
-\subsection{\texttt{sh\_ppvi.wu\_ops}}
+\subsection{\texttt{wu\_python/core/sor\_solver.py}}
 \begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{lap\_wu}, \texttt{inv\_lap\_wu}, \texttt{inv\_helm\_wu},
-      \texttt{grad\_wu}, \texttt{jac\_wu} --- Wu-scaled SH operator
-      wrappers over \texttt{pvtend.sh\_ops} (\Cref{sec:wu_sh_ops}).
+\item \texttt{sor\_poisson\_2d(rhs, bc, omega, max\_iter, tol)} ---
+      Red-black SOR for $\nabla^2\psi=\zeta$ (\ref{eq:sor_update})
+\item Numba-accelerated with \texttt{parallel=True}, thread-safe per-row error reduction
 \end{itemize}
 
-\subsection{\texttt{sh\_ppvi.balnc} / \texttt{sh\_ppvi.balp}}
+\subsection{\texttt{wu\_python/core/pv\_calc.py}}
 \begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{balnc.balnc\_sh(\dots)} --- coupled $H$--$\psi$ Picard
-      solve (\cref{eq:wu_psi,eq:wu_H}); Pass~C.
-\item \texttt{balp} --- piecewise perturbation inversion; Pass~D
-      (pending Pass~C convergence, \Cref{sec:wu_open}).
+\item \texttt{compute\_ertel\_pv(U, V, TH, H, FC)} --- Ertel PV on $\sigma$-levels (\ref{eq:ertel_sigma})
+\item \texttt{invert\_vorticity\_balanced(VOR, H, U, V)} --- $\nabla^2\psi=\zeta$ with wind-integrated BC (\ref{eq:psi_boundary})
+\item \texttt{\_boundary\_psi\_from\_winds(H, U, V)} --- Davis eq.~2.40 boundary integration
 \end{itemize}
 
-\subsection{\texttt{sh\_ppvi.pv\_calc}}
+\subsection{\texttt{wu\_python/core/balance.py} (BALNC)}
 \begin{itemize}\setlength\itemsep{0pt}
-\item Ertel PV diagnostic --- \cref{eq:Q}.
+\item \texttt{balnc\_total(Q, H\_init, PSI\_init, THA\_K, ...)} ---
+      Coupled $\psi$--$H$ SOR total-balance inversion (Pass~C)
+\item \texttt{\_nondim(H, PSI, Q)} --- non-dimensionalization:
+      $H_\text{nd}=H/\text{HND}$, $\psi_\text{nd}=\psi/(10^5\cdot\text{HND})$,
+      $q_\text{nd}=\text{PIF}_k\cdot q/(10^2\cdot\text{QCONST})$
+\item \texttt{\_h\_solve\_column\_parallel} (in \texttt{balance\_parallel.py}) ---
+      Implicit vertical tridiagonal Thomas solver per column, numba \texttt{prange} over $j$
 \end{itemize}
 
-\section{SH operators (\texttt{pvtend.sh\_ops})}
+\subsection{\texttt{wu\_python/core/piecewise.py} (BALP)}
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{balp\_pieces(Q\_event, Q\_mean, PSI\_mean, H\_mean, ...)} ---
+      Piecewise perturbation inversion (Pass~D)
+\item Exact 1:1 port of \texttt{qinvertp21\_94.f} subroutine BALP
+\item \texttt{\_compute\_mean\_coeffs(HB\_nd, SBR\_nd)} --- pre-compute
+      SLL, SPP, AVO, STB, ASI, BSI, APHI from non-dimensional mean state
+\item \texttt{\_balp\_solve(SP, HP, QP, TP, coeffs, ...)} --- core BALP
+      solver: $\psi'$ SOR (numba 2-D per level) + $H'$ SOR (3-D pointwise)
+\end{itemize}
+
+\subsection{\texttt{wu\_python/config.py}}
+\begin{itemize}\setlength\itemsep{0pt}
+\item Solver params: \texttt{OMEGS, OMEGH, PART, THRSH, MAXT, MAX\_ITER}
+\item Parallelism: \texttt{N\_WORKERS=32} (ProcessPoolExecutor),
+      \texttt{NUM\_CORES=64} (numba threads)
+\item Piece definitions: \texttt{PIECES} (lower/middle/upper)
+\end{itemize}
+
+\subsection{Step drivers (\texttt{wu\_python/steps/})}
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{05\_pass\_ab/run\_pass\_ab.py} --- Pass A/B: Ertel PV + $\psi$
+\item \texttt{06\_pass\_c/run\_pass\_c.py} --- Pass C: total balanced inversion
+\item \texttt{07\_pass\_d/run\_pass\_d.py} --- Pass D: 3-piece perturbation (ProcessPoolExecutor)
+\item \texttt{08\_parse\_outputs/parse\_and\_pv.py} --- ERA5 vs Wu PV comparison
+\item \texttt{09\_pv\_advection/pv\_advection.py} --- PV advection by induced winds
+\item \texttt{10\_fig8/fig8\_replica.py} --- Davis 2022 Fig.~8 replica
+\end{itemize}
+
+\section{Shared utilities (\texttt{pvtend.sh\_ops})}
 
 All operate level-by-level on a NH grid via internal parity-mirroring.
+Retained for reference; the Wu Python track uses finite differences instead.
 \begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{gradient\_sh}, \texttt{laplacian\_sh},
-      \texttt{invert\_laplacian\_sh}, \texttt{vortdiv\_sh},
-      \texttt{helmholtz\_sh}, \texttt{second\_derivs\_sh}.
 \item \texttt{invert\_helmholtz\_sh}$^\dagger$,
-      \texttt{filter\_low\_modes\_sh}$^\dagger$ --- added for the BALNC
-      port (\Cref{sec:wu_sh_ops}); purely additive.
+      \texttt{filter\_low\_modes\_sh}$^\dagger$ --- added for the earlier
+      SH BALNC port; purely additive, backward-compatible.
 \end{itemize}
 \noindent$^\dagger$ new functions; no existing \texttt{sh\_ops} routine
 was modified.

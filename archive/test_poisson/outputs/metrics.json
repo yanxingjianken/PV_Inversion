@@ -1,0 +1,20 @@
+[
+  {
+    "residual": 0.0002021,
+    "rel_res": 0.070136,
+    "dt": 0.238,
+    "solver": "wu_sor"
+  },
+  {
+    "L\u00b2": 1.0512,
+    "iters": 100.0,
+    "converged": "False",
+    "solver": "SH"
+  },
+  {
+    "L\u00b2": 0.99497,
+    "iters": 3.0,
+    "converged": "True",
+    "solver": "Wu"
+  }
+]

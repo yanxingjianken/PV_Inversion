@@ -1,24 +1,18 @@
 # %% [markdown]
 # Step 06 — Wu Pass C: Total Balanced PV Inversion (qinvert21)
 #
-# The `qinvert21` program solves the full coupled PV inversion:
-# - 2-D Helmholtz equation for streamfunction ψ on each σ-level
-# - 3-D PV-streamfunction relation with gradient-wind balance
-# - Uses Successive Over-Relaxation (SOR) with under-relaxation between ψ and Φ
+# The `qinvert21` program solves the full coupled nonlinear balance:
+# - 2-D Helmholtz for ψ on each σ-level
+# - 3-D PV–streamfunction relation with gradient-wind balance
+# - SOR Picard iteration with under-relaxation between ψ and Φ
 #
-# **Input**: meanq, meanh, event_q.out, event_h.out
-# **Output**: event_bal.out — refined balanced ψ + Φ
-#
-# **Critical solver params** (from our experience):
-# - `OMEGS=1.4, OMEGH=1.4` — under-relaxed for stability on 87×51 grid
-# - `INLIN=0` (linear balance) — **mandatory**; INLIN=1 explodes at 250 hPa jet
-# - `PART=0.5` — coupling strength between ψ and Φ
+# **Params driven by**: `wu/wu_config.yaml`
 #
 # %% [markdown]
 # ## 1. Run qinvert21
 #
 # %%
-import subprocess, os, numpy as np, matplotlib.pyplot as plt
+import subprocess, os, numpy as np, matplotlib.pyplot as plt, yaml
 import cartopy.crs as ccrs, cartopy.feature as cfeature
 from pathlib import Path
 
@@ -26,6 +20,10 @@ import sys; from pathlib import Path as _Path
 _sys_path_root = str(_Path(__file__).resolve().parent.parent.parent)
 if _sys_path_root not in sys.path: sys.path.insert(0, _sys_path_root)
 import config
+_YAML_CFG_PATH = _Path(_sys_path_root) / "wu_config.yaml"
+with open(_YAML_CFG_PATH) as _f:
+    _yaml_cfg = yaml.safe_load(_f)
+_pc = _yaml_cfg["pass_c"]
 STEP_DIR = _Path(__file__).resolve().parent
 DATA_DIR = _Path(config.DATA_DIR); ERA5_DIR = _Path(config.ERA5_DIR)
 CLIM_DIR = _Path(config.CLIM_DIR); WU_DIR = _Path(config.WU_IN_DIR)
@@ -36,25 +34,24 @@ BUILD_DIR = _Path(config.DATA_DIR) / "wu_bin"
 # (WU_DIR from config)
 # (BUILD_DIR from config import)
 
-# Pass C stdin (from working 04_run_wu.sh — note single quotes for filenames!)
+# Pass C stdin — driven by wu_config.yaml
 os.chdir(str(WU_DIR))
 exe = BUILD_DIR / "qinvert21.exe"
-# Remove stale output (Fortran uses STATUS='new')
 for fn in ["event_bal.out"]:
     (WU_DIR / fn).unlink(missing_ok=True)
 
-stdin_c = """200
-200
-1.4
-1.4
-0.5
-0.01
+stdin_c = f"""{_pc['max_iter']}
+{_pc['max_outer']}
+{_pc['omegs']}
+{_pc['omegh']}
+{_pc['part']}
+{_pc['thrsh']}
 'event_h.out'
 'event_q.out'
 'event_bal.out'
-1
-0.01
-1
+{_pc['imap']}
+{_pc['qmin']}
+{_pc['inf']}
 """
 
 result_c = subprocess.run(
@@ -85,7 +82,7 @@ def read_wu_ascii(filepath):
                 data.append(float(tok))
     return np.array(data[:8]), np.array(data[8:])
 
-NX, NY, NW = 87, 51, 10
+NX, NY, NW = config.NX, config.NY, config.NW
 block = NY * NX
 
 hdr_bal, vals_bal = read_wu_ascii(WU_DIR / "event_bal.out")
@@ -121,8 +118,8 @@ LON2D, LAT2D = np.meshgrid(lons, lats)
 proj = ccrs.LambertConformal(central_longitude=-105, central_latitude=50)
 pc   = ccrs.PlateCarree()
 
-psi_b = PSI_passb[5] * 1.0e5   # Pass B (initial guess)
-psi_c = PSI_bal[5] * 1.0e5     # Pass C (refined)
+psi_b = PSI_passb[3] * 1.0e5   # Pass B (initial guess) @500 hPa (idx 3)
+psi_c = PSI_bal[3] * 1.0e5     # Pass C (refined) @500 hPa
 psi_diff = psi_c - psi_b        # refinement
 
 fig, axes = plt.subplots(1, 3, figsize=(18, 5), subplot_kw={"projection": proj})
@@ -159,9 +156,9 @@ plt.show()
 # ## 4. Visualize: ψ at All 10 Pressure Levels
 #
 # %%
-PLEV = np.array([1000., 925., 850., 700., 600., 500., 400., 300., 250., 200.])
+PLEV = config.PLEVS   # [1000, 850, 700, 500, 400, 300, 250, 200]
 
-fig, axes = plt.subplots(2, 5, figsize=(22, 9), subplot_kw={"projection": proj})
+fig, axes = plt.subplots(2, 4, figsize=(22, 9), subplot_kw={"projection": proj})
 for k, ax in enumerate(axes.flat):
     psi_k = PSI_bal[k] * 1.0e5
     vm = np.percentile(np.abs(psi_k), 99)
@@ -173,7 +170,7 @@ for k, ax in enumerate(axes.flat):
                  fontsize=7)
 
 plt.colorbar(cf, ax=axes.ravel().tolist(), shrink=0.5, pad=0.02, label="ψ [m²/s]")
-plt.suptitle("Wu Pass C — Total Balanced ψ at All 10 Pressure Levels [m²/s]",
+plt.suptitle("Wu Pass C — Total Balanced ψ at All 8 Pressure Levels [m²/s]",
              fontsize=13, fontweight="bold")
 plt.tight_layout()
 plt.savefig(STEP_DIR/"pass_c_psi_all_levels.png", dpi=150, bbox_inches="tight")

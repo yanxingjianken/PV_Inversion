@@ -1,0 +1,86 @@
+\chapter{Forward PV Computation}
+\label{chap:wupy_pv}
+
+The \textbf{Wu Python} track computes Ertel potential vorticity directly
+on the regional $51\times87$ lat-lon grid using finite differences,
+mirroring the Wu Fortran subroutine \texttt{PV\_CALC} in
+\texttt{pvpialln\_94UV.f}.
+
+\section{Ertel PV on Sigma Levels}
+
+Ertel PV in isobaric-sigma coordinates is
+\begin{equation}
+  q = -g\left(
+    \zeta_\theta\,\frac{\partial\theta}{\partial p}
+    + \frac{\partial v}{\partial p}\frac{\partial\theta}{\partial x}
+    - \frac{\partial u}{\partial p}\frac{\partial\theta}{\partial y}
+  \right)
+  \label{eq:ertel_sigma}
+\end{equation}
+where $\zeta_\theta = f + \zeta$ is the isentropic absolute vorticity and
+all derivatives are on constant $\sigma$ surfaces.
+
+The computation uses:
+\begin{itemize}
+  \item Vertical differencing: centred on interior levels, one-sided at
+        $\sigma$-boundaries (levels 1 and NL)
+  \item Horizontal differencing: centred 2nd-order on the $1.5^\circ$ grid
+  \item Unit conversion: output in PVU ($10^{-6}\,$K\,m$^2$\,kg$^{-1}$\,s$^{-1}$)
+\end{itemize}
+
+\section{Balanced Streamfunction}
+
+For each level $k$, the balanced streamfunction $\psi$ is obtained by
+solving the 2-D Poisson equation
+\begin{equation}
+  \nabla^2\psi = \zeta = \frac{\partial v}{\partial x} - \frac{\partial u}{\partial y}
+  \label{eq:psi_poisson}
+\end{equation}
+with Dirichlet boundary conditions $\psi = gH/f$ on the domain edges.
+The solver is the red-black SOR described in \Cref{chap:fd}.
+
+\section{Boundary Streamfunction from Wind Integration}
+
+On the domain boundary (the 1-cell frame), $\psi$ is NOT set by the simple
+geostrophic relation $\psi = gH/f$.  Instead, following Davis~(2022, eq.~2.40),
+the wind field is integrated along the boundary:
+\begin{equation}
+  \psi(\mathbf{x}_\text{boundary}) = \psi_\text{NW}
+  + \int_{\text{NW}\to\text{SW}} v\,dx
+  + \int_{\text{SW}\to\text{SE}} u\,dy
+  + \int_{\text{SE}\to\text{NE}} v\,dx
+  + \int_{\text{NE}\to\text{NW}} u\,dy
+  \label{eq:psi_boundary}
+\end{equation}
+starting from $\psi_\text{NW} = gH/f$ at the north-west corner and
+integrating south $\to$ east $\to$ north $\to$ west, with a divergence
+correction $d_\text{sum}$ to enforce periodicity.
+
+This is implemented in \texttt{wu\_python/core/pv\_calc.py} as
+\texttt{\_boundary\_psi\_from\_winds()}.  It reduces the $\psi$ discrepancy
+vs.~the Fortran reference from $415\%$ to $\sim5\%$ (p99 relative error).
+
+\section{Implementation}
+
+Two main modules handle the forward PV calculation:
+
+\begin{itemize}
+  \item \texttt{wu\_python/core/pv\_calc.py} ---
+        \begin{itemize}
+          \item \texttt{compute\_ertel\_pv(U, V, TH, H, FC)}: full Ertel PV on
+                all 10 $\sigma$-levels
+          \item \texttt{invert\_vorticity\_balanced(VOR, H, U, V)}: Poisson-solve
+                for $\psi$ with wind-integrated boundary conditions
+          \item \texttt{\_boundary\_psi\_from\_winds(H, U, V)}: Davis eq.~2.40
+        \end{itemize}
+  \item \texttt{wu\_python/core/fd\_ops.py} ---
+        \begin{itemize}
+          \item \texttt{laplacian\_5pt(psi)}: 5-point discrete Laplacian
+                (\ref{eq:laplacian_5pt})
+          \item \texttt{relative\_vorticity(U, V)}: $\zeta = \partial_x v - \partial_y u$
+        \end{itemize}
+\end{itemize}
+
+The pipeline step \texttt{05\_pass\_ab/run\_pass\_ab.py} computes both the
+mean-state and event PV + $\psi$, saving them as \texttt{pass\_ab.npz} for
+subsequent BALNC/BALP inversion.

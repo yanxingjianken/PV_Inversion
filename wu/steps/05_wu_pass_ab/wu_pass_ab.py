@@ -2,22 +2,18 @@
 # Step 05 — Compile Wu Fortran + Pass A (Mean PV) + Pass B (Event PV)
 #
 # **First use of the Wu Fortran solver!** This step:
-# 1. Compiles the 3 Fortran executables from `inv3d_ca2025/` with our PR=0.2 config
+# 1. Compiles the 3 Fortran executables with our PR config
 # 2. **Pass A**: `pvpialln` on mean state → `meanq` (PV) + `meanh` (ψ, Φ)
 # 3. **Pass B**: `pvpialln` on event state → `event_q.out` + `event_h.out`
 # 4. Reads & visualizes the output: Ertel PV, balanced ψ, boundary θ
 #
-# **Wu's pvpialln computes**:
-# - Ertel PV on interior σ-levels (K=2..NL−1 = 925–250 hPa)
-# - Balanced streamfunction ψ via relative vorticity inversion
-# - Geopotential Φ on pseudo-height
-# - θ at the top and bottom boundaries
+# **Params driven by**: `wu/wu_config.yaml` (single source of truth)
 #
 # %% [markdown]
 # ## 1. Compile Wu Fortran (Fresh Build)
 #
 # %%
-import subprocess, os, numpy as np, matplotlib.pyplot as plt
+import subprocess, os, numpy as np, matplotlib.pyplot as plt, yaml
 import cartopy.crs as ccrs, cartopy.feature as cfeature
 from pathlib import Path
 
@@ -25,11 +21,16 @@ import sys; from pathlib import Path as _Path
 _sys_path_root = str(_Path(__file__).resolve().parent.parent.parent)
 if _sys_path_root not in sys.path: sys.path.insert(0, _sys_path_root)
 import config
+# Load YAML config (single source of truth for all Fortran params; lives in wu/)
+_YAML_CFG_PATH = _Path(_sys_path_root) / "wu_config.yaml"
+with open(_YAML_CFG_PATH) as _f:
+    _yaml_cfg = yaml.safe_load(_f)
+_pab = _yaml_cfg["pass_ab"]
 STEP_DIR = _Path(__file__).resolve().parent
 BUILD_DIR = _Path(config.DATA_DIR) / "wu_bin"; BUILD_DIR.mkdir(parents=True, exist_ok=True)
 WU_DIR = _Path(config.WU_IN_DIR); WU_OUT = _Path(config.WU_OUT_DIR)
 WU_OUT.mkdir(parents=True, exist_ok=True)
-WU_SRC = _Path(config.FORT_DIR)
+WU_SRC = (_Path(__file__).resolve().parent.parent.parent / "fortran")  # wu/fortran/
 
 # Compile Fortran sources
 sources = {
@@ -59,9 +60,11 @@ print(f"\n✓ All 3 executables compiled in {BUILD_DIR}")
 print("  Note: gfortran warnings about 'goto' are normal for F77 code")
 
 # %% [markdown]
-# ## 2. Pass A — Compute Mean PV from Climatology
+# ## 2. Pass A + Pass B — Run concurrently (independent, different output files)
 #
 # %%
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 os.chdir(str(WU_DIR))
 exe = BUILD_DIR / "pvpialln.exe"
 
@@ -72,8 +75,12 @@ for f in ["meanq","meanh","mean_q.out","mean_h.out",
     if fp.exists():
         fp.unlink()
 
-# Pass A stdin (exact format from working 04_run_wu.sh)
-stdin_a = """meanq
+# Pass A/B stdin — driven by wu_config.yaml
+# Fortran pvpialln reads: output Q/H names, nhalfday, .grid files, nhalfdayo,
+# per-output (NN, q.out, h.out), then imax, omegs, thrs.
+_pab_imax = _pab["imax"]; _pab_omegs = _pab["omegs"]; _pab_thrs = _pab["thrs"]
+
+stdin_a = f"""meanq
 meanh
 1
 mean.grid
@@ -81,29 +88,12 @@ mean.grid
 1
 mean_q.out
 mean_h.out
+{_pab_imax}
+{_pab_omegs}
+{_pab_thrs}
 """
 
-result_a = subprocess.run(
-    [str(exe)], input=stdin_a, capture_output=True, text=True, timeout=120
-)
-print("Pass A stdout (last 5 lines):")
-for line in result_a.stdout.split("\n")[-5:]:
-    print(f"  {line}")
-if result_a.returncode != 0:
-    print(f"Pass A FAILED (code {result_a.returncode}): {result_a.stderr[-300:]}")
-
-for fname in ["meanq", "meanh"]:
-    fp = WU_DIR / fname
-    sz = fp.stat().st_size if fp.exists() else 0
-    print(f"  {'✓' if sz>1000 else '✗'} {fname}: {sz} bytes")
-os.chdir(str(STEP_DIR))
-
-# %% [markdown]
-# ## 3. Pass B — Compute Event PV (Jan 8 00Z)
-#
-# %%
-os.chdir(str(WU_DIR))
-stdin_b = """event_q.out
+stdin_b = f"""event_q.out
 event_h.out
 1
 event.grid
@@ -111,14 +101,39 @@ event.grid
 1
 dummy_q2.out
 dummy_h2.out
+{_pab_imax}
+{_pab_omegs}
+{_pab_thrs}
 """
-result_b = subprocess.run(
-    [str(exe)], input=stdin_b, capture_output=True, text=True, timeout=120
-)
-print("Pass B stdout (last 10 lines):")
-for line in result_b.stdout.split("\n")[-10:]:
-    print(f"  {line}")
 
+def _run_pass(label, stdin_str, timeout=600):
+    """Run one Fortran pass, return (label, stdout, stderr, returncode)."""
+    result = subprocess.run(
+        [str(exe)], input=stdin_str, capture_output=True, text=True, timeout=timeout
+    )
+    return label, result
+
+# Run Pass A and Pass B concurrently (independent .exe invocations)
+with ThreadPoolExecutor(max_workers=2) as exec_:
+    futures = {
+        exec_.submit(_run_pass, "Pass A", stdin_a): "Pass A",
+        exec_.submit(_run_pass, "Pass B", stdin_b): "Pass B",
+    }
+    results = {}
+    for f in as_completed(futures):
+        label, res = f.result()
+        results[label] = res
+        print(f"\n{label} stdout (last 5 lines):")
+        for line in res.stdout.split("\n")[-5:]:
+            print(f"  {line}")
+        if res.returncode != 0:
+            print(f"{label} FAILED (code {res.returncode}): {res.stderr[-300:]}")
+
+# Verify outputs
+for fname in ["meanq", "meanh"]:
+    fp = WU_DIR / fname
+    sz = fp.stat().st_size if fp.exists() else 0
+    print(f"  {'✓' if sz>1000 else '✗'} {fname}: {sz} bytes")
 for fname in ["event_q.out", "event_h.out"]:
     fp = WU_DIR / fname
     if fp.exists():
@@ -140,8 +155,8 @@ def read_wu_ascii(filepath):
                 data.append(float(tok))
     return np.array(data[:8]), np.array(data[8:])
 
-NX, NY, NW = 87, 51, 10
-NW_PV = NW - 2   # interior PV levels (925–250 hPa)
+NX, NY, NW = config.NX, config.NY, config.NW
+NW_PV = NW - 2   # interior PV levels (850–250 hPa)
 block = NY * NX
 
 # Read mean PV (meanq)
@@ -177,12 +192,12 @@ print(f"Sentinel (Q≥9999) cells: mean={n_sentinel_mean}, event={n_sentinel_eve
 # raw Wu output to understand the solver's internal state.
 #
 # %%
-lats = 85.5 - np.arange(NY) * 1.5   # N→S
-lons = -169.5 + np.arange(NX) * 1.5
+lats = config.LAT_N - np.arange(NY) * config.DLAT   # N→S
+lons = config.LON_W + np.arange(NX) * config.DLON
 LON2D, LAT2D = np.meshgrid(lons, lats)
 
-# PV at 3 representative levels
-pv_levels = {2: "500 hPa", 5: "300 hPa", 7: "250 hPa"}   # 0-based interior index
+# PV at 3 representative levels (interior 0-indexed: 0=850,1=700,2=500,3=400,4=300,5=250)
+pv_levels = {2: "500 hPa", 4: "300 hPa", 5: "250 hPa"}
 proj = ccrs.LambertConformal(central_longitude=-105, central_latitude=50)
 pc   = ccrs.PlateCarree()
 
@@ -260,8 +275,8 @@ for k in range(NW):
 print(f"H_mean range: [{H_mean.min():.1f}, {H_mean.max():.1f}] (geopotential)")
 print(f"ψ_mean range:  [{PSI_mean.min():.2f}, {PSI_mean.max():.2f}] (streamfunction ÷ 1e5)")
 
-# Plot ψ at 500 hPa (K=5, 0-based)
-psi_500 = PSI_mean[5] * 1.0e5   # restore actual ψ [m²/s]
+# Plot ψ at 500 hPa (K=4 → 0-based index 3)
+psi_500 = PSI_mean[3] * 1.0e5   # restore actual ψ [m²/s]
 
 fig = plt.figure(figsize=(10, 7))
 ax = fig.add_subplot(1,1,1, projection=proj)

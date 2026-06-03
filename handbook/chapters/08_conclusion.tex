@@ -11,33 +11,44 @@ This handbook documents two tracks for piecewise PV inversion of the
         \Cref{chap:wu_solver,chap:wu_pipeline}), a finite-difference SOR
         solver that runs end-to-end and reproduces the Davis 2022
         Fig.~8 diagnostic.  It is the project \emph{benchmark};
-  \item the \textbf{Python spherical-harmonic BALNC port} (Part~II,
-        \Cref{chap:wu_balnc}), a faithful re-implementation of Wu's
-        non-dimensional balance system on the hemispheric SH grid,
-        built on \texttt{pvtend.sh\_ops}.
+  \item the \textbf{Wu Python finite-difference port} (Part~II,
+        \Cref{chap:fd,chap:wupy_pv,chap:wu_balnc}), a pure-Python
+        re-implementation of Wu's non-dimensional balance system on the
+        same regional $51\times87$ grid, using finite differences with
+        numba-accelerated SOR and implicit tridiagonal vertical coupling.
 \end{enumerate}
 
 \noindent Both tracks share the mathematical foundations of
 \Cref{chap:math} (Ertel PV, hydrostatic and balance closures,
-linearization) and the SH operator and forward-PV machinery of
-\Cref{chap:sh,chap:forward}.
+linearization) and the Wu non-dimensionalization of \Cref{chap:wu_balnc}.
 
 \section{Status and Known Limitations}
 
 \begin{itemize}\setlength\itemsep{0pt}
-  \item \textbf{Wu reference --- working.}  Pass~A/B/C/D complete and
+  \item \textbf{Wu Fortran reference --- working.}  Pass~A/B/C/D complete and
         the Fig.~8 replica (\Cref{fig:wu_fig8}) reproduces the
         published structure.  For this case the total-balance Pass~C is
         a consistency check: it leaves the \texttt{pvpialln} field
         unchanged to solver tolerance.
-  \item \textbf{SH port --- BALNC does not yet converge.}  With the
-        explicit nonlinear terms frozen, the streamfunction norm drifts
-        upward under a slow $H$--$\psi$ linear feedback rather than
-        settling (\Cref{sec:wu_open}).  The piecewise BALP pass is
-        therefore not yet run.
+  \item \textbf{Wu Python port --- working, 90$\times$ faster than serial.}
+        The full pipeline (steps 05--10) runs end-to-end in $\sim$30\,s on
+        384 cores.  The BALNC solver uses a parallel implicit tridiagonal
+        H-solver (Thomas algorithm per column, \texttt{prange} over columns)
+        and parallel red-black SOR for the $\psi$ equation.  Piecewise
+        Pass~D uses \texttt{ProcessPoolExecutor} for 3-piece parallelism.
+        The $\psi$ field matches the Fortran reference to $\sim$5\% (p99
+        relative error).
+  \item \textbf{Piecewise perturbation amplitudes.}  The nonlinear piecewise
+        approach (BALNC per piece) yields $\psi' \sim 10^{7}$--$10^{8}$\,m$^2$/s,
+        dominated by the mean-state response.  The linear BALP port
+        (\texttt{piecewise.py}) gives $\psi' \sim 200$--$400$\,m$^2$/s for
+        this case --- algorithmically correct but underestimates the
+        perturbation because the linearization around the mean state does
+        not capture the nonlinear coupling.
   \item \textbf{$f_0$-plane closure.}  The legacy linear closure
-        $\dPhi\approx f_0\dpsi$ (\Cref{sec:closure}), still cited by the
-        SH port, under-estimates upper-level geopotential and accounts
+        $\dPhi\approx f_0\dpsi$ (\Cref{sec:closure}) under-estimates
+        upper-level geopotential and accounts for part of the residual
+        discrepancy between the Wu Python and Wu Fortran $\psi$ fields.
         for an $\approx\!0.1\times$ amplitude bias relative to the Wu
         reference.
 \end{itemize}

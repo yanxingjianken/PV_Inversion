@@ -18,7 +18,7 @@ import config
 STEP_DIR = _Path(__file__).resolve().parent
 ERA5_DIR = _Path(config.ERA5_DIR); ERA5_DIR.mkdir(parents=True, exist_ok=True)
 
-LEVELS = ["1000","925","850","700","600","500","400","300","250","200"]
+LEVELS = ["1000","850","700","500","400","300","250","200"]
 VARS   = ["temperature","u_component_of_wind","v_component_of_wind","geopotential"]
 
 # Derive date list from config

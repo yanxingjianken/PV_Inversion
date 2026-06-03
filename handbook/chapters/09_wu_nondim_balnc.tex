@@ -37,19 +37,29 @@ levels):
 \begin{center}\small
 \begin{tabular}{lll}
   \toprule
-  Scale & Definition & Value ($1.5^\circ$, $N_L{=}10$) \\
+  Scale & Definition & Value ($1.5^\circ$, $N_L{=}10$ example \\
+  & & \quad vs. actual $N_L{=}8$ case) \\
   \midrule
-  $\mathrm{DPI}$        & $500/N_L$                                  & $50$ \\
+  $\mathrm{DPI}$        & $500/N_L$                                  & $50$ (ex.) / $62.5$ (actual) \\
   $\mathrm{LL}$         & $(2\!\times\!10^{7}/\pi)\cdot\Delta\lambda\cdot\pi/180$ & $1.667\times10^{5}$ m \\
   $\mathrm{FF}$         & reference Coriolis                          & $10^{-4}$ s$^{-1}$ \\
-  $\mathrm{THO}$        & $\mathrm{FF}^2\,\mathrm{LL}^2/\mathrm{DPI}$ & $5.556$ K \\
+  $\mathrm{THO}$        & $\mathrm{FF}^2\,\mathrm{LL}^2/\mathrm{DPI}$ & $5.556$ K (ex.) / $4.445$ K (actual) \\
   $\mathrm{FRC}$        & $\mathrm{DPI}\cdot\mathrm{THO}/(\mathrm{FF}^2\mathrm{LL}^2)$ & $\equiv 1$ \\
-  $\mathrm{QCONST}$     & $10^{6}\kappa\,g\,c_p\,\mathrm{FF}\,\mathrm{THO}/(p_0\,\mathrm{DPI})$ & $0.313$ PVU \\
-  $\mathrm{UC}$         & $\mathrm{DPI}\cdot\mathrm{THO}/(\mathrm{FF}\cdot\mathrm{LL})$ & $16.67$ m\,s$^{-1}$ \\
-  $H_{\text{factor}}$   & $g/(\mathrm{THO}\cdot\mathrm{DPI})$         & $3.530\times10^{-2}$ \\
+  $\mathrm{QCONST}$     & $10^{6}\kappa\,g\,c_p\,\mathrm{FF}\,\mathrm{THO}/(p_0\,\mathrm{DPI})$ & $0.313$ PVU (ex.) / $0.313$ PVU (actual; DPI cancels in ratio) \\
+  $\mathrm{H_{ND}}$     & $\mathrm{DPI}\cdot\mathrm{THO}/g$            & $28.32$ m (actual $N_L{=}8$) \\
+  $H_{\text{factor}}$   & $g/(\mathrm{THO}\cdot\mathrm{DPI})$         & $3.530\times10^{-2}$ (ex.) \\
   \bottomrule
 \end{tabular}
 \end{center}
+
+\noindent \textbf{Note:} The Fortran reference (\texttt{qinvert21\_94.f})
+computes $\mathrm{DPI}=500/N_L$ at runtime, giving $62.5$ for the
+$N_L{=}8$ configuration used throughout this project.  The
+$N_L{=}10$/$1.5^\circ$ example above is retained from the original
+Wu documentation.  The Pass~D solver (\texttt{qinvertp21\_94.f})
+previously hardcoded $\mathrm{DPI}=50$; this was corrected to
+$\mathrm{DPI}=500/\mathrm{FLOAT}(N_L)$ on 2026-06-03
+(\Cref{sec:wu_si_output}).
 
 \noindent The field transforms (\texttt{nondim.py}) are
 \begin{align}

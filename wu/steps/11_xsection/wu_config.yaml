@@ -1,0 +1,86 @@
+grid:
+  nx: 87
+  ny: 51
+  nw: 8
+  dlat: 1.5
+  dlon: 1.5
+  lat_n: 85.5
+  lat_s: 10.5
+  lon_w: -169.5
+  lon_e: -40.5
+
+levels:
+  pr:
+  - 1.0
+  - 0.85
+  - 0.7
+  - 0.5
+  - 0.4
+  - 0.3
+  - 0.25
+  - 0.2
+  pr_hpa:
+  - 1000
+  - 850
+  - 700
+  - 500
+  - 400
+  - 300
+  - 250
+  - 200
+
+pieces:
+  lower:
+    levels:
+    - 1
+    - 2
+    hpa: "1000\u2013850"
+  middle:
+    levels:
+    - 3
+    - 4
+    - 5
+    hpa: "700\u2013400"
+  upper:
+    levels:
+    - 6
+    - 7
+    - 8
+    hpa: "300\u2013200"
+
+pass_ab:
+  imax: 5000
+  omegs: 1.75
+  thrs: 5.0e4
+
+pass_c:
+  max_iter: 10000
+  max_outer: 10000
+  omegs: 1.4
+  omegh: 1.4
+  part: 0.05
+  thrsh: 0.01
+  qmin: 0.01
+  imap: 1
+  inf: 1
+
+pass_d:
+  omegs: 1.85
+  omegh: 1.4
+  part: 0.05
+  thrsh: 0.1
+  tscal: 1.0
+  qscal: 1.0
+  qmin: 0.00001
+  max: 10000
+  maxt: 10000
+  imap: 1
+  inlin: 0
+  iqd: 0
+  ibc: 1
+
+xsection:
+  lat: 34.5
+  var: v_induced
+  contour: pv_anomaly
+

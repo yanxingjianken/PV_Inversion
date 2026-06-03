@@ -1,0 +1,117 @@
+\chapter{Finite-Difference Operators}
+\label{chap:fd}
+
+The horizontal operators ($\nabla$, $\nabla^2$, Helmholtz, Jacobian) in the
+\textbf{Wu Python} track are computed via \textbf{finite-difference} (FD) stencils
+on the same $51\times87$ lat-lon grid used by the Wu Fortran solver
+(\Cref{chap:wu_solver}).  This is in contrast to the earlier spherical-harmonic
+port, which has been retired.
+
+\section{Grid and Map Factors}
+
+The domain is the Wu regional Northern-Hemisphere box:
+\begin{itemize}
+  \item Latitudes: $10.5^\circ$N--$85.5^\circ$N ($\Delta\phi = 1.5^\circ$, NY~=~51)
+  \item Longitudes: $169.5^\circ$W--$40.5^\circ$W ($\Delta\lambda = 1.5^\circ$, NX~=~87)
+  \item Vertical: 10 $\sigma$-levels ($\sigma = p/p_0$, where $p_0=1000$\,hPa)
+\end{itemize}
+
+Grid metrics are computed in \texttt{wu\_python/core/grid.py} and stored as
+module-level arrays:
+\begin{itemize}
+  \item \texttt{FC} --- Coriolis parameter $f = 1.458\times10^{-4}\sin\phi$ [s$^{-1}$], (NY,)
+  \item \texttt{A} --- 5-point Laplacian coefficients (NY,~5), matching the
+        Fortran \texttt{AC(I,1:5)} convention:
+        \begin{align*}
+          A_{i,1} &= \sigma^2\,\frac{\cos\phi_{i-1/2}}{\cos\phi_i}
+          &\text{(south neighbour, } i-1\text{)}\\
+          A_{i,2} &= \frac{1}{\cos^2\phi_i}
+          &\text{(west neighbour,  } j-1\text{)}\\
+          A_{i,3} &= -\frac{2 + \sigma^2\cos\phi_i\,(\cos\phi_{i-1/2}+\cos\phi_{i+1/2})}
+                         {\cos^2\phi_i}
+          &\text{(centre, diagonal)}\\
+          A_{i,4} &= \frac{1}{\cos^2\phi_i}
+          &\text{(east neighbour,  } j+1\text{)}\\
+          A_{i,5} &= \sigma^2\,\frac{\cos\phi_{i+1/2}}{\cos\phi_i}
+          &\text{(north neighbour, } i+1\text{)}
+        \end{align*}
+        where $\sigma = \Delta\lambda/\Delta\phi = 1.0$ (equal grid spacing).
+  \item \texttt{AP} --- $\cos\phi$ at cell centres (NY,)
+  \item \texttt{DP, DL} --- grid spacings in metres: $a\Delta\phi$, $a\cos\phi\Delta\lambda$
+\end{itemize}
+
+\section{Five-Point Laplacian}
+
+The discrete 5-point Laplacian at level $k$ is computed over the interior
+($i=1\ldots \text{NY}-2$, $j=1\ldots \text{NX}-2$) as
+\begin{equation}
+  (\nabla^2 \psi)_{i,j}
+  = A_{i,1}\,\psi_{i-1,j}
+  + A_{i,2}\,\psi_{i,j-1}
+  + A_{i,3}\,\psi_{i,j}
+  + A_{i,4}\,\psi_{i,j+1}
+  + A_{i,5}\,\psi_{i+1,j}
+  \label{eq:laplacian_5pt}
+\end{equation}
+
+This is implemented in \texttt{wu\_python/core/fd\_ops.py} via
+\texttt{laplacian\_5pt()}, optionally accelerated with numba JIT.
+
+The coefficients $A_{i,1:5}$ embed the $\cos\phi$ map-factor scaling.
+The \textbf{physical} Laplacian (with units m$^{-2}$) would require division
+by $(a\Delta\phi\cos\phi)^2$; the dimensionless grid-index Laplacian
+(\ref{eq:laplacian_5pt}) is sufficient because the non-dimensionalization
+(\Cref{chap:wu_balnc}) absorbs the remaining metric factors into the
+solver coefficients.
+
+\section{Poisson Solver (Red-Black SOR)}
+
+The 2-D Poisson equation $\nabla^2\psi = \zeta$ is solved on each level via
+\textbf{red-black Successive Over-Relaxation} (SOR) in
+\texttt{wu\_python/core/sor\_solver.py}.  The grid is colour-partitioned:
+\begin{itemize}
+  \item \textbf{Red} cells ($i+j$ even): depend only on black neighbours
+  \item \textbf{Black} cells ($i+j$ odd): depend only on red neighbours
+\end{itemize}
+Within each colour, $\sim$2200 cells are independent, enabling thread-level
+parallelism via numba \texttt{prange}.  The update at point $(i,j)$ is:
+\begin{equation}
+  \psi_{i,j} \leftarrow \psi_{i,j}
+  + \omega\,\frac{\zeta_{i,j} - (\nabla^2\psi)_{i,j}}{A_{i,3}}
+  \label{eq:sor_update}
+\end{equation}
+with SOR relaxation factor $\omega$ (typically $1.0$--$1.75$).
+
+\section{Implicit Vertical Tridiagonal Solver}
+
+For the H-equation vertical coupling, each $(i,j)$ column is solved independently
+via the \textbf{Thomas algorithm} (tridiagonal solver) in
+\texttt{wu\_python/core/balance\_parallel.py}.  The system is:
+\begin{equation}
+  a_k\,H_{k-1} + b_k\,H_k + c_k\,H_{k+1} = d_k,
+  \qquad k = 2,\ldots,\text{NL}-1
+  \label{eq:tridiag}
+\end{equation}
+where $a_k,b_k,c_k$ come from BB,~BH,~BL and the absolute-vorticity field AVO,
+and $d_k$ contains the right-hand side with the explicit horizontal Laplacian.
+
+Since columns are independent, the solver uses \texttt{numba.prange} over the $j$
+(zonal) index, distributing 4,437 columns across up to 64 threads.
+
+\section{Summary: FD vs SH Operators}
+
+\begin{table}[H]
+  \centering
+  \caption{Operator comparison: Wu Python (FD) vs retired SH port}
+  \begin{tabular}{lcc}
+    \toprule
+    Operator & Wu Python (FD) & SH port (retired) \\
+    \midrule
+    Laplacian $\nabla^2$    & 5-pt FD stencil (\ref{eq:laplacian_5pt}) & $-\ell(\ell+1)/a^2$ in spectral space \\
+    Helmholtz $(\nabla^2+c)^{-1}$ & 2-D red-black SOR & Direct spectral inversion \\
+    Jacobian $J(\psi,\cdot)$     & Arakawa 2nd-order FD (nlbeta\_int) & Spectral transform method \\
+    Vertical coupling       & Thomas tridiagonal per column & Same, lagged in spectral space \\
+    Parallelism             & \texttt{prange} (threads) + ProcessPool & Serial \\
+    \bottomrule
+  \end{tabular}
+\end{table}

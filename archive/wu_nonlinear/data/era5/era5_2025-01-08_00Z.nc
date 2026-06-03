@@ -1,0 +1,1 @@
+/net/flood/data2/users/x_yan/pv_inversion/data/era5/era5_2025-01-08_00Z.nc

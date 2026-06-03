@@ -24,22 +24,28 @@ share a common ERA5 data-preparation front end:
         therefore treated as the \emph{benchmark}.  It is the subject of
         \textbf{Part~I} (\Cref{chap:wu_solver,chap:wu_pipeline}), where
         every pass is illustrated with the plot it generates.
-  \item the \textbf{Python spherical-harmonic (SH) port}
-        (\texttt{pv\_inversion/sh/}) --- a faithful re-implementation of
-        Wu's non-dimensional balance system on the full-hemisphere SH
-        grid, built on \texttt{pvtend.sh\_ops}.  This is the subject of
-        \textbf{Part~II} (\Cref{chap:sh,chap:forward,chap:wu_balnc}).  It
-        documents the mathematics, the operator mapping, and the
-        \emph{current state} of the port, whose total-balance pass does
-        not yet converge.
+  \item the \textbf{Wu Python finite-difference (FD) port}
+        (\texttt{pv\_inversion/wu\_python/}) --- a faithful re-implementation of
+        Wu's non-dimensional balance system on the same regional $51\times87$
+        lat-lon grid, using finite differences and numba-accelerated SOR.
+        This is the subject of \textbf{Part~II}
+        (\Cref{chap:fd,chap:wupy_pv,chap:wu_balnc}).  It documents the
+        operator mapping, forward PV computation, non-dimensionalization, and
+        the current state of the pure-Python pipeline.
 \end{enumerate}
 
 \begin{keybox}[What was retired]
-Two earlier SH solvers --- a one-step \emph{Direct Spectral Solve} and
-an \emph{LGMRES + linearized-Charney} solver (collectively
-``Family-B'') --- have been removed from the codebase and from this
-handbook.  Their governing closure (the linear $f_0$-plane balance) is
-retained in \Cref{sec:closure} because the SH BALNC port still cites it.
+Three earlier solvers have been removed from the codebase and from this handbook:
+\begin{itemize}
+  \item Two SH solvers --- a one-step \emph{Direct Spectral Solve} and an
+        \emph{LGMRES + linearized-Charney} solver (collectively ``Family-B'').
+        Their governing closure (the linear $f_0$-plane balance) is retained in
+        \Cref{sec:closure}.
+  \item The \textbf{Python spherical-harmonic (SH) BALNC port} --- this was a
+        faithful re-implementation on the full-hemisphere SH grid using
+        \texttt{pvtend.sh\_ops}, but it did not converge and has been superseded
+        by the Wu Python finite-difference port (\texttt{wu\_python/}).
+\end{itemize}
 \end{keybox}
 
 \section{Notation Cheat-Sheet}
@@ -93,8 +99,8 @@ A more complete glossary appears in \Cref{app:notation}.
   Module & Purpose & Reference \\
   \midrule
   \texttt{sh\_ppvi/coords.py}    & vertical Exner grid, $D_1, D_2$, Coriolis   & \Cref{chap:math} \\
-  \texttt{pvtend.sh\_ops}        & SH gradient/Laplacian/Helmholtz operators   & \Cref{chap:sh} \\
-  \texttt{sh\_ppvi/pv\_calc.py}  & Ertel PV diagnostic                         & \Cref{chap:forward} \\
+  \texttt{pvtend.sh\_ops}        & SH gradient/Laplacian/Helmholtz (reference only) & \Cref{chap:fd} \\
+  \texttt{wu\_python/core/pv\_calc.py}  & Ertel PV diagnostic                         & \Cref{chap:wupy_pv} \\
   \texttt{sh\_ppvi/nondim.py}    & Wu non-dimensional scales                   & \Cref{chap:wu_balnc} \\
   \texttt{sh\_ppvi/sor.py}       & $BB,BH,BL$ vertical stencil                 & \Cref{chap:wu_balnc} \\
   \texttt{sh\_ppvi/wu\_ops.py}   & Wu-scaled SH operator wrappers              & \Cref{chap:wu_balnc} \\

@@ -27,11 +27,11 @@ LON_W, LON_E = -169.5, -40.5
 # PR[0] = lower boundary (θ fixed), PR[-1] = upper boundary (θ fixed).
 # CRITICAL: top 3 levels MUST have uniform Δσ spacing (0.05)
 #           or the SOR solver at K=NL-1 will diverge exponentially.
-PR = np.array([1.0, 0.925, 0.85, 0.7, 0.6, 0.5, 0.4, 0.3, 0.25, 0.2])
+PR = np.array([1.0, 0.85, 0.7, 0.5, 0.4, 0.3, 0.25, 0.2])
 NW = len(PR)
 PLEVS = PR * 1000.0    # pressure [hPa]
 PLEVS_PA = PLEVS * 100.0  # pressure [Pa]
-NW_PV = NW - 2          # interior PV levels (925–250 hPa)
+NW_PV = NW - 2          # interior PV levels (850–250 hPa)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 3. EVENT DATE
@@ -53,9 +53,9 @@ CLIM_WINDOW_DAYS = 30
 # Each piece = tuple of (start_K, end_K) where K is 1-indexed Fortran level.
 # K=1 → 1000 hPa, K=2 → 925 hPa, …, K=10 → 200 hPa.
 PIECES = [
-    {"name": "lower",  "levels": (1, 2),   "hPa": "1000–925"},
-    {"name": "middle", "levels": (3, 4),   "hPa": "850–700"},
-    {"name": "upper",  "levels": (5, 9),   "hPa": "600–250"},
+    {"name": "lower",  "levels": (1, 2),   "hPa": "1000–850"},
+    {"name": "middle", "levels": (3, 5),   "hPa": "700–400"},
+    {"name": "upper",  "levels": (6, 8),   "hPa": "300–200"},
 ]
 NPIECES = len(PIECES)
 
@@ -68,14 +68,34 @@ PART  = 0.5       # under-relaxation between ψ and Φ updates
 THRSH = 0.01      # convergence threshold
 TSCAL = 1.0       # boundary θ scale factor
 QSCAL = 1.0       # PV scale factor
-INLIN = 0         # 0 = linear balance (stable), 1 = nonlinear (may explode)
+INLIN = 0         # 1 = nonlinear (pieces sum to total per Davis 1991); 0 = linear
 IQD   = 0         # 0 = no external PV dependency
 IBC   = 0         # 0 = homogeneous Dirichlet BC on lateral walls
 MAX_ITER = 5000   # max SOR iterations per Poisson solve
 MAXT     = 500    # max outer coupling cycles
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 7. PLOTTING DEFAULTS
+# 7. PHYSICAL CONSTANTS & UNIT CONVENTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+G = 9.81                 # gravity [m/s²]
+PSI_SCALE = 1.0e5        # Wu ψ "per-1e5 m²/s" → m²/s multiplier
+PV_SI_SCALE = 1.0e6      # ERA5 PV [SI] → PVU multiplier (1/this for PVU→SI)
+                          # ERA5 CDS native PV is K·m²·kg⁻¹·s⁻¹ (~1e-6); PVU = 1e-6 SI
+R_E = 6.371e6            # Earth radius [m]
+OMEGA = 7.292e-5          # Earth rotation rate [s⁻¹]
+RD = 287.0                # dry-air gas constant [J/(kg·K)]
+CP = 1004.0               # dry-air specific heat [J/(kg·K)]
+P0 = 1.0e5                # reference pressure [Pa]
+KAP = RD / CP             # ≈ 2/7
+
+# SI convention for all .nc output (adopted 2026-06-03):
+#   ψ (streamfunction)  → m²/s       (Wu file × PSI_SCALE)
+#   Φ (geopotential)    → m²/s²      (Wu H [m] × G)
+#   PV (Ertel)          → K·m²·kg⁻¹·s⁻¹  (SI native, ≡ 10⁻⁶ PVU)
+#   PVadv (advection)   → K·m²·kg⁻¹·s⁻²  (SI tendency, ≡ PVU/s × 1e-6)
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# 8. PLOTTING DEFAULTS
 # ═══════════════════════════════════════════════════════════════════════════════
 QUIVER_SKIP = 4        # plot every Nth grid point
 REF_SPEED   = 20.0     # m/s for reference arrow
@@ -83,7 +103,7 @@ WIND_DISPLAY_CAP = 40.0  # m/s — cap displayed wind magnitude
 GAUSSIAN_SIGMA = 1.5   # σ for piece-3 smoothing
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 8. PATHS (derived — do not edit)
+# 9. PATHS (derived — do not edit)
 # ═══════════════════════════════════════════════════════════════════════════════
 import os
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))

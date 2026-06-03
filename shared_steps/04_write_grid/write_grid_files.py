@@ -33,10 +33,10 @@ WU_DIR   = WU_DIR
 CLIM_DIR = CLIM_DIR
 WU_DIR.mkdir(parents=True, exist_ok=True)
 
-NX, NY = 87, 51
-DLAT, DLON = 1.5, 1.5
-LAT_S, LAT_N = 10.5, 85.5
-LON_W, LON_E = -169.5, -40.5
+NX, NY = config.NX, config.NY
+DLAT, DLON = config.DLAT, config.DLON
+LAT_S, LAT_N = config.LAT_S, config.LAT_N
+LON_W, LON_E = config.LON_W, config.LON_E
 
 def write_wu_grid(arr3d, out_path):
     """Write (10F8.1) .grid file. Each row (87 values) = 9 lines (8×10 + 1×7).
@@ -72,7 +72,7 @@ def load_nc_var(nc_path, var_name):
 
 # %%
 G = 9.81; P0 = 100000.0; RD = 287.0; CP = 1004.0
-PLEV_PA = np.array([1000,925,850,700,600,500,400,300,250,200]) * 100.0
+PLEV_PA = config.PLEVS_PA  # read from config (8 levels)
 
 def write_merged_grid(nc_path, out_path):
     """Load NetCDF, convert to Wu units, write merged .grid (H+θ+U+V)."""
