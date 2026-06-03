@@ -1,13 +1,13 @@
 grid:
-  nx: 87
+  nx: 134
   ny: 51
   nw: 8
   dlat: 1.5
   dlon: 1.5
   lat_n: 85.5
   lat_s: 10.5
-  lon_w: -169.5
-  lon_e: -40.5
+  lon_w: 120.0
+  lon_e: 320.0
 
 levels:
   pr:
@@ -75,7 +75,7 @@ pass_d:
   max: 10000
   maxt: 10000
   imap: 1
-  inlin: 0
+  inlin: 1
   iqd: 0
   ibc: 0
 

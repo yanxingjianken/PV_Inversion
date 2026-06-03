@@ -75,16 +75,29 @@ G = 9.81; P0 = 100000.0; RD = 287.0; CP = 1004.0
 PLEV_PA = config.PLEVS_PA  # read from config (8 levels)
 
 def write_merged_grid(nc_path, out_path):
-    """Load NetCDF, convert to Wu units, write merged .grid (H+θ+U+V)."""
+    """Load NetCDF, convert to Wu units, write merged .grid (H+T+U+V).
+
+    CRITICAL — the second field must be RAW TEMPERATURE T [K], NOT θ.
+    Wu's pvpialln_94UV.f reads this field as temperature (comment line 268:
+    "the data is already in K") and converts it to θ itself at line 270:
+        TH = TH * CP/PI(K) = T * (p0/p)^κ.
+    If we pre-convert to θ here, the Fortran applies the Exner factor a SECOND
+    time, giving an internal θ_F = θ_true·(p0/p)^κ = θ_true·Cp/Π. That inflates
+    the static stability STB=∂θ/∂Π — and hence the pseudo-PV Q — by the
+    level-dependent factor C_K(STB−θ/Π)/STB ≈ 2.7–5× (≈3.5× at 250 hPa), which
+    is precisely the spurious "amplification" the old empirical STAB_SCALE≈0.3
+    tried to mask. Writing raw T makes Q·1e-8 equal the true Ertel PV exactly.
+    """
     H  = load_nc_var(nc_path, "z") / G                                   # [m]
-    TH = load_nc_var(nc_path, "t") * (P0/PLEV_PA[:,None,None])**(RD/CP)  # [K]
+    T  = load_nc_var(nc_path, "t")                                       # [K] raw temperature
     U  = load_nc_var(nc_path, "u")
     V  = load_nc_var(nc_path, "v")
-    # Stack: H (10,NY,NX), TH (10,NY,NX), U (10,NY,NX), V (10,NY,NX)
-    merged = np.concatenate([H, TH, U, V], axis=0)  # (40, NY, NX)
+    # Stack: H (NW,NY,NX), T (NW,NY,NX), U (NW,NY,NX), V (NW,NY,NX)
+    merged = np.concatenate([H, T, U, V], axis=0)  # (4*NW, NY, NX)
     write_wu_grid(merged, out_path)
     print(f"  ✓ {out_path.name}  H=[{H.min():.0f},{H.max():.0f}]m  "
-          f"θ=[{TH.min():.0f},{TH.max():.0f}]K  U=[{U.min():.0f},{U.max():.0f}]")
+          f"T=[{T.min():.0f},{T.max():.0f}]K  U=[{U.min():.0f},{U.max():.0f}]  "
+          f"(raw T — Fortran computes θ via T·(p0/p)^κ)")
 
 write_merged_grid(CLIM_DIR/"mean_clim.nc",  WU_DIR/"mean.grid")
 write_merged_grid(CLIM_DIR/"event.nc",     WU_DIR/"event.grid")

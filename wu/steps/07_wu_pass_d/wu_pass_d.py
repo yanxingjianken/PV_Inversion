@@ -4,10 +4,10 @@
 # The `qinvertp21` program (BALP subroutine) partitions the PV perturbation
 # q′ = q_event − q_mean into **3 vertical pieces** and inverts each independently.
 #
-# **Pieces** (from wu_config.yaml):
-# - Piece 1 (lower):  K={1,2,3,4} → 1000–700 hPa
-# - Piece 2 (middle): K={5,6} → 600–500 hPa
-# - Piece 3 (upper):  K={7,8,9,10} → 400–200 hPa
+# **Pieces** (from wu_config.yaml, NW=8 levels [1000,850,700,500,400,300,250,200]):
+# - Piece 1 (lower):  K={1,2}   → 1000–850 hPa
+# - Piece 2 (middle): K={3,4,5} → 700–400 hPa
+# - Piece 3 (upper):  K={6,7,8} → 300–200 hPa
 #
 # **INLIN=1** — nonlinear terms in operator coefficients (Davis 1991, Section 2.5).
 # Ensures Σ(pieces) = total perturbation.

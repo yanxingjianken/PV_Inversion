@@ -68,9 +68,8 @@ graph TD
     subgraph WU ["wu/steps/  —  Fortran SOR pipeline"]
         W05["05_wu_pass_ab<br/>Pass A/B<br/>PV+ψ (clim/event)"] --> W06["06_wu_pass_c<br/>Pass C: total balance"]
         W06 --> W07["07_wu_pass_d<br/>Pass D: 3 pieces<br/>ψ′ per piece"]
-        W07 --> W08["08_parse_outputs<br/>NetCDF + Ertel PV"]
-        W08 --> W09["09_pv_advection"]
-        W09 --> W10["10_fig8<br/>fig8_replica.{png,pdf}"]
+        W07 --> W08["08_parse_outputs<br/>NetCDF + Ertel PV + PVadv"]
+        W08 --> W10["10_fig8<br/>fig8_replica.{png,pdf}"]
     end
     subgraph SH ["sh/steps/  —  spectral-vertical pipeline"]
         H13["13_ppvi_mean<br/>invert_full → ψ̄, Φ̄"] --> H14["14_ppvi_pieces<br/>SV solve per piece"]

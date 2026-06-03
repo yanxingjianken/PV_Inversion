@@ -16,10 +16,10 @@ from datetime import date
 # Fortran PARAMETER blocks must match NX, NY exactly.
 # Domain: lat_N → lat_S (north to south in Fortran array I=1..NY)
 #         lon_W → lon_E (west to east in Fortran array J=1..NX)
-NX, NY = 87, 51
+NX, NY = 134, 51
 DLAT, DLON = 1.5, 1.5
 LAT_N, LAT_S = 85.5, 10.5
-LON_W, LON_E = -169.5, -40.5
+LON_W, LON_E = 120.0, 320.0  # 120°E to 40°W (0-360 convention)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 2. VERTICAL LEVELS (σ = p / 1000 hPa)
@@ -68,11 +68,11 @@ PART  = 0.5       # under-relaxation between ψ and Φ updates
 THRSH = 0.01      # convergence threshold
 TSCAL = 1.0       # boundary θ scale factor
 QSCAL = 1.0       # PV scale factor
-INLIN = 0         # 1 = nonlinear (pieces sum to total per Davis 1991); 0 = linear
+INLIN = 1         # 1 = nonlinear (pieces sum to total per Davis 1991); 0 = linear
 IQD   = 0         # 0 = no external PV dependency
-IBC   = 0         # 0 = homogeneous Dirichlet BC on lateral walls
-MAX_ITER = 5000   # max SOR iterations per Poisson solve
-MAXT     = 500    # max outer coupling cycles
+IBC   = 0         # 0 = homogeneous Dirichlet BC on lateral walls; 1 = full perturbation BC
+MAX_ITER = 8000   # max SOR iterations per Poisson solve (scaled for 51×134 grid)
+MAXT     = 800    # max outer coupling cycles
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. PHYSICAL CONSTANTS & UNIT CONVENTIONS
@@ -87,6 +87,34 @@ RD = 287.0                # dry-air gas constant [J/(kg·K)]
 CP = 1004.0               # dry-air specific heat [J/(kg·K)]
 P0 = 1.0e5                # reference pressure [Pa]
 KAP = RD / CP             # ≈ 2/7
+
+# ── Wu PV → SI Ertel PV exact back-conversion (2026-06-03) ──────────────────
+# Wu Q (pvpialln_94UV.f L460-468):
+#   Q_wu = -COEF·Π⁻²·⁵·[(f+ζ)·∂θ/∂Π + (∂u/∂Π·∂θ/∂y − ∂v/∂Π·∂θ/∂x)]
+#   COEF = 1e2·1e6·9.81·κ·Cp³·⁵/p0
+# True SI Ertel PV = -g[(f+ζ)·∂θ/∂p + shear_p].
+# Chain rule: ∂/∂p = (κΠ/p)·∂/∂Π → the SAME factor multiplies both terms,
+# so a single per-level coefficient converts the whole scalar:
+#   PV_SI = Q_wu · (g·κ/COEF)·Π³·⁵/p  =  Q_wu · (1/1e8)·(p/p0)^{3.5κ−1}
+# With κ = 2/7, 3.5κ = 1 exactly → (p/p0)⁰ = 1 → c(p) = 1e-8 CONSTANT ∀ level.
+# WU2SI = (G * KAP / COEF_WU) * PI_LEV^3.5 / PLEVS_PA  [per-level, ≈ 1e-8]
+# Wu chose Π⁻²·⁵ weighting precisely so Π³·⁵/p cancels all pressure dependence.
+# The residual Wu_Q/ERA5_PV ~3.5× beyond the true 1e8 is PHYSICAL
+# (Wu coarse-FD vs ERA5 native PV discretization), not a units factor.
+#
+# Non-dimensionalisation (qinvert21_94.f L213-276, N_L levels):
+#   DPI   = 500/N_L            ─ non-dim pressure increment
+#   LL    = (2e7/π)·Δλ·π/180   ─ horizontal length scale [m]
+#   FF    = 1e-4               ─ reference Coriolis [s⁻¹]
+#   THO   = FF²·LL²/DPI        ─ potential temperature scale [K]
+#   HND   = DPI·THO/G          ─ geopotential height scale [m]
+#   PI_WU = Cp·(p/p0)^κ/DPI    ─ non-dim Exner (Δπ_wu ≈ 1)
+#   PIF   = PI_WU^{2.5}         ─ PV-diminishing factor
+#   QCONST = 1e6·κ·G·Cp·FF·THO/(p0·DPI)  ─ PV scale [equiv. PVU]
+#   H_nd  = Φ/(THO·DPI)         ψ_nd = ψ·1e⁻⁵·G/(THO·DPI)
+#   q_nd  = PIF·q/(1e2·QCONST)
+# Note: N_L=8 → DPI=62.5 (NOT the old hardcoded 50 from N_L=10 examples).
+# ──────────────────────────────────────────────────────────────────────────────
 
 # SI convention for all .nc output (adopted 2026-06-03):
 #   ψ (streamfunction)  → m²/s       (Wu file × PSI_SCALE)

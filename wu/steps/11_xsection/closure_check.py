@@ -175,7 +175,9 @@ else:
 
 psi_event_global = hel.helmholtz_decomposition_3d(u_event_global, v_event_global, event_lat, event_lon)['psi']
 da_psi_event = xr.DataArray(psi_event_global, coords=[PLEVS, event_lat, event_lon], dims=["level", "lat", "lon"])
-da_psi_event = da_psi_event.assign_coords(lon=(((da_psi_event.lon + 180) % 360) - 180)).sortby("lon")
+# Keep native 0-360 longitudes (global ERA5 is 0..358.5 monotonic) so the
+# subsequent interp onto the 0-360 regional domain (120..319.5) stays in range.
+da_psi_event = da_psi_event.sortby("lon")
 
 # 2. Load NH Climatology Rotational Data & extract NH psi
 _ds_base_clim = xr.open_dataset("/net/flood/data2/users/x_yan/era/clim/era5_hourly_clim_1990-2020_jan_u.nc")
@@ -195,6 +197,12 @@ if clim_lat[0] > clim_lat[-1]:
 
 psi_clim_nh = hel.helmholtz_decomposition_3d(u_rot_clim, v_rot_clim, clim_lat, clim_lon)['psi']
 da_psi_clim = xr.DataArray(psi_clim_nh, coords=[PLEVS, clim_lat, clim_lon], dims=["level", "lat", "lon"])
+# The clim winds are stored on a -180/180 longitude axis (-180..178.5). The
+# regional target grid is 0-360 (120..319.5), so interpolating onto lon>180
+# would fall OUT OF RANGE and return NaN over the eastern 2/3 of the domain
+# (the blank middle/right panels of Row 2). Convert clim ψ to 0-360 monotonic
+# first so the interp covers the whole CONUS/Atlantic sector.
+da_psi_clim = da_psi_clim.assign_coords(lon=(da_psi_clim.lon % 360)).sortby("lon")
 
 # 3. Interpolate PSI to Regional Domain
 psi_ev_reg = da_psi_event.interp(lat=lats, lon=lons, method="cubic").values
@@ -248,7 +256,8 @@ for label, total, residual in [
 # ## 5. Plot — 6-Panel Closure Map + Scatter + Vertical Profile
 #
 # %%
-proj = ccrs.PlateCarree()
+proj = ccrs.PlateCarree(central_longitude=200)  # center on Pacific domain (no 180° seam)
+pc = ccrs.PlateCarree()
 fig = plt.figure(figsize=(20, 18))
 
 # ---- Row 1: Reference A (single BALP) ----
@@ -258,7 +267,7 @@ data_A = [PSI_sum[K250], PSI_total_A[K250], residual_A[K250]]
 for col in range(3):
     ax = fig.add_subplot(3, 3, col + 1, projection=proj)
     ax.set_extent([config.LON_W - 2, config.LON_E + 2,
-                   config.LAT_S - 2, config.LAT_N + 2], crs=proj)
+                   config.LAT_S - 2, config.LAT_N + 2], crs=pc)
     ax.add_feature(cfeature.COASTLINE, lw=0.5, edgecolor="gray")
     ax.add_feature(cfeature.BORDERS, lw=0.3, edgecolor="lightgray")
     ax.add_feature(cfeature.STATES.with_scale("50m"), lw=0.2, edgecolor="lightgray")
@@ -275,7 +284,7 @@ for col in range(3):
     if not np.isfinite(vm) or vm <= 0:
         vm = 1e6
     cf = ax.pcolormesh(LON2D, LAT2D, field, cmap="RdBu_r",
-                       vmin=-vm, vmax=vm, transform=proj)
+                       vmin=-vm, vmax=vm, transform=pc)
     cbar = plt.colorbar(cf, ax=ax, orientation="horizontal", pad=0.06,
                         fraction=0.04, shrink=0.80)
     cbar.ax.ticklabel_format(style="sci", scilimits=(0, 0), axis="x")
@@ -283,7 +292,6 @@ for col in range(3):
     if col == 0:
         ax.set_ylabel("Ref A\n(single BALP)", fontsize=10, fontweight="bold", labelpad=40)
     ax.set_title(titles_A[col], fontsize=9)
-
 # ---- Row 2: Reference B (observed winds) ----
 titles_B = ["Σ pieces ψ′ (250 hPa)", "Obs ψ′ (event−clim winds)", "Residual (Σ − Obs)"]
 data_B = [PSI_sum[K250], PSI_total_B[K250], residual_B[K250]]
@@ -291,7 +299,7 @@ data_B = [PSI_sum[K250], PSI_total_B[K250], residual_B[K250]]
 for col in range(3):
     ax = fig.add_subplot(3, 3, col + 4, projection=proj)
     ax.set_extent([config.LON_W - 2, config.LON_E + 2,
-                   config.LAT_S - 2, config.LAT_N + 2], crs=proj)
+                   config.LAT_S - 2, config.LAT_N + 2], crs=pc)
     ax.add_feature(cfeature.COASTLINE, lw=0.5, edgecolor="gray")
     ax.add_feature(cfeature.BORDERS, lw=0.3, edgecolor="lightgray")
     ax.add_feature(cfeature.STATES.with_scale("50m"), lw=0.2, edgecolor="lightgray")
@@ -308,7 +316,7 @@ for col in range(3):
     if not np.isfinite(vm) or vm <= 0:
         vm = 1e6
     cf = ax.pcolormesh(LON2D, LAT2D, field, cmap="RdBu_r",
-                       vmin=-vm, vmax=vm, transform=proj)
+                       vmin=-vm, vmax=vm, transform=pc)
     cbar = plt.colorbar(cf, ax=ax, orientation="horizontal", pad=0.06,
                         fraction=0.04, shrink=0.80)
     cbar.ax.ticklabel_format(style="sci", scilimits=(0, 0), axis="x")

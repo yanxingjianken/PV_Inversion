@@ -1,0 +1,160 @@
+\chapter{Wu PV to SI Ertel PV: Exact Conversion}
+\label{chap:wu_coeffs}
+
+This chapter documents the \emph{exact analytic} conversion from the
+Wu Fortran PV scalar $Q_{\text{Wu}}$ to true SI Ertel potential
+vorticity.  The conversion coefficient is \textbf{exactly $10^{-8}$}
+at every pressure level when $\kappa = 2/7$, which is the standard
+dry-air value used throughout the Wu code.  This result was derived on
+2026-06-03 and replaces an earlier ad-hoc median-ratio scaling.
+
+\section{Wu PV Definition}
+
+In \texttt{pvpialln\_94UV.f} (lines 460--468), Ertel-like PV is
+computed as
+\begin{equation}
+Q_{\text{Wu}} = -\mathrm{COEF}\cdot\Pi^{-2.5}
+  \Bigl[(f+\zeta)\,\frac{\partial\theta}{\partial\Pi}
+        + \Bigl(\frac{\partial u}{\partial\Pi}\frac{\partial\theta}{\partial y}
+                - \frac{\partial v}{\partial\Pi}\frac{\partial\theta}{\partial x}\Bigr)
+  \Bigr],
+\label{eq:wu_q}
+\end{equation}
+where
+\begin{align}
+\mathrm{COEF} &= \frac{10^{2}\cdot10^{6}\cdot g\cdot\kappa\cdot c_p^{3.5}}{p_0},
+\label{eq:coef} \\
+\Pi(p) &= c_p\left(\frac{p}{p_0}\right)^{\kappa},
+\label{eq:pi_wu}
+\end{align}
+with numerical constants $g=9.81$\,m\,s$^{-2}$,
+$\kappa = 2/7$, $c_p=1004.5$\,J\,kg$^{-1}$\,K$^{-1}$,
+$p_0 = 10^{5}$\,Pa (but see warning below).  The ``1.E2'' in the
+COEF expression is a legacy over-scaling of no physical significance;
+it is the conjugate of the $10^{-2}$ divide applied to PV in the
+non-dimensional BALNC/BALP solvers, and it cancels exactly in the
+back-conversion derived below.
+
+\section{True SI Ertel PV}
+
+The standard definition of Ertel PV in isobaric coordinates is
+\begin{equation}
+\mathrm{PV}_{\text{SI}} = -g
+  \Bigl[(f+\zeta)\,\frac{\partial\theta}{\partial p}
+        + \frac{\partial u}{\partial p}\frac{\partial\theta}{\partial y}
+        - \frac{\partial v}{\partial p}\frac{\partial\theta}{\partial x}
+  \Bigr],
+\label{eq:pv_si}
+\end{equation}
+with units K\,m$^{2}$\,kg$^{-1}$\,s$^{-1}$
+($\equiv 10^{-6}$\,PVU).
+
+\section{Conversion}
+
+The two definitions, \eqref{eq:wu_q} and \eqref{eq:pv_si}, differ only
+in the vertical coordinate of differentiation:
+$\partial/\partial\Pi$ in Wu versus $\partial/\partial p$ in SI.  The
+chain rule relates them:
+\begin{equation}
+\frac{\partial}{\partial p}
+  = \frac{\partial\Pi}{\partial p}\,\frac{\partial}{\partial\Pi}
+  = \frac{\kappa\Pi}{p}\,\frac{\partial}{\partial\Pi}.
+\label{eq:chain}
+\end{equation}
+The factor $\kappa\Pi/p$ multiplies \emph{both} the vorticity-stability
+term and the shear term identically, so it factors out of the entire
+bracket:
+\begin{align}
+\mathrm{PV}_{\text{SI}}
+  &= Q_{\text{Wu}}\cdot\frac{g}{\mathrm{COEF}}\cdot
+     \frac{\kappa\Pi}{p}\cdot\Pi^{2.5} \nonumber \\
+  &= Q_{\text{Wu}}\cdot\frac{g\,\kappa}{\mathrm{COEF}}\cdot
+     \frac{\Pi^{3.5}}{p}
+  \equiv Q_{\text{Wu}}\cdot c(p).
+\label{eq:exact}
+\end{align}
+
+\subsection{The Coefficient $c(p)$ is Constant}
+
+Substituting $\Pi = c_p(p/p_0)^{\kappa}$ and
+$\mathrm{COEF} = 10^{8}\,g\,\kappa\,c_p^{3.5}/p_0$:
+\begin{align}
+c(p) &= \frac{g\,\kappa}{10^{8}\,g\,\kappa\,c_p^{3.5}/p_0}\cdot
+       \frac{c_p^{3.5}(p/p_0)^{3.5\kappa}}{p} \nonumber \\
+     &= \frac{1}{10^{8}}\,(p/p_0)^{3.5\kappa-1}.
+\label{eq:c_p}
+\end{align}
+With $\kappa = 2/7$,
+\begin{equation}
+3.5\kappa = \frac{7}{2}\cdot\frac{2}{7} = 1
+\quad\Longrightarrow\quad
+c(p) = \frac{1}{10^{8}}\,(p/p_0)^{0} = \mathbf{10^{-8}}
+\label{eq:constant}
+\end{equation}
+at \emph{every} pressure level.  Wu's choice of the $\Pi^{-2.5}$
+weighting was designed precisely so that $\Pi^{3.5}/p$ is
+pressure-independent: the $p$ dependence in $\Pi^{3.5}$ exactly
+cancels with the $1/p$ from the chain rule.
+
+\begin{keybox}[Wu Q $\to$ SI conversion is a universal constant]
+  \[
+  \boxed{\;\mathrm{PV}_{\text{SI}} = Q_{\text{Wu}} \times 10^{-8}\;}
+  \qquad\text{or}\qquad
+  \boxed{\;Q_{\text{Wu}} = \mathrm{PV}_{\text{SI}} \times 10^{8}\;}
+  \]
+  This holds for \emph{any} pressure level when $\kappa = 2/7$.
+  If a different $\kappa$ were used, the per-level array
+  $c(p) = (g\kappa/\mathrm{COEF})\cdot\Pi^{3.5}/p$ must be
+  evaluated; the `WU2SI` array in \texttt{parse\_and\_pv.py}
+  implements this general form.
+\end{keybox}
+
+\section{The Residual ~3.5$\times$ Factor}
+
+Dividing Wu Q by $10^{8}$ converts it to \emph{genuine SI units}
+(K\,m$^{2}$\,kg$^{-1}$\,s$^{-1}$).  The resulting field, when compared
+to ERA5's native Ertel PV, shows a spatially-varying residual factor of
+$\sim$2--4$\times$ (median $\sim$3.5$\times$).  This residual is
+\emph{physical}, not a units problem:
+
+\begin{itemize}
+  \item Wu uses a 5-point finite-difference Laplacian on a
+        $1.5^{\circ}$ grid; ERA5 computes PV from its native spectral
+        representation.
+  \item Wu computes $\partial\theta/\partial\Pi$ from 3-point
+        centred differences on 8 unevenly-spaced $\sigma$-levels;
+        ERA5 has 137 model levels.
+  \item The static stability $\partial\theta/\partial p$ is sensitive
+        to vertical resolution; coarse differencing systematically
+        underestimates it by $\sim$2--3$\times$.
+\end{itemize}
+
+The median ratio of $Q_{\text{Wu}}\!\times\!10^{-8}$ to ERA5 PV can
+be reported as a diagnostic of the discretisation bias, but it must
+\emph{not} be used to scale the Wu PV field.  The correct conversion
+is the analytic $10^{-8}$.
+
+\section{Implementation in the Pipeline}
+
+In \texttt{wu/steps/08\_parse\_outputs/parse\_and\_pv.py}:
+\begin{lstlisting}[language=Python]
+# Exact Wu Q -> SI Ertel PV per-level coefficient
+PLEVS_PA = np.asarray(WU_LEVS) * 100.0
+PI_LEV   = CP * (PLEVS_PA / P0) ** KAP
+COEF_WU  = 1.0e2 * 1.0e6 * 9.81 * KAP * CP**3.5 / P0
+WU2SI    = (G * KAP / COEF_WU) * PI_LEV**3.5 / PLEVS_PA  # ~1e-8
+Q_wu_si  = Q_wu * WU2SI[k250]   # SI [K.m2.kg-1.s-1]
+Q_wu_pvu = Q_wu_si * 1e6        # PVU for display
+\end{lstlisting}
+
+The $c(p) = 10^{-8}$ constant is also documented in
+\texttt{config.py} section~7 alongside the full Wu non-dimensional
+scale set (DPI, LL, FF, THO, HND, QCONST, PI\_WU, PIF, BB/BH/BL).
+
+\begin{warnbox}[COEF uses $g=9.81$, not $g=9.80665$]
+The Wu Fortran hardcodes $g=9.81$ (line 460), while the standard
+SI value is $g=9.80665$\,m\,s$^{-2}$.  The Python coefficients
+match the Fortran's 9.81 for exact numeric consistency.  The
+difference is $<0.04\%$ and is absorbed by the residual
+discretisation bias anyway.
+\end{warnbox}

@@ -4,7 +4,7 @@
 \contentsline {section}{\numberline {1.3}Quick Tour of the Code}{6}{section.1.3}%
 \contentsline {paragraph}{Part\nobreakspace {}I --- the Wu Fortran reference (\texttt {pv\_inversion/wu/}).}{6}{section*.4}%
 \contentsline {paragraph}{Part\nobreakspace {}II --- the Python SH port (\texttt {pv\_inversion/sh/}).}{6}{section*.5}%
-\contentsline {part}{I\hspace {1em}Theory and the Wu Fortran Reference (Benchmark)}{7}{part.1}%
+\contentsline {part}{I\hspace {1em}The Wu Fortran Pipeline}{7}{part.1}%
 \contentsline {chapter}{\numberline {2}Mathematical Foundations}{8}{chapter.2}%
 \contentsline {section}{\numberline {2.1}Coordinates and Constants}{8}{section.2.1}%
 \contentsline {section}{\numberline {2.2}Thermodynamic Relations}{8}{section.2.2}%
@@ -21,54 +21,40 @@
 \contentsline {paragraph}{Pass C --- \texttt {qinvert21} (BALNC).}{12}{section*.9}%
 \contentsline {paragraph}{Pass D --- \texttt {qinvertp21} (BALP).}{12}{section*.10}%
 \contentsline {section}{\numberline {3.3}Solver Parameters}{12}{section.3.3}%
-\contentsline {chapter}{\numberline {4}The Wu Pipeline, Step by Step (Benchmark)}{13}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Step 05 --- Pass A/B: Mean and Event PV, Balanced $\psi $}{13}{section.4.1}%
-\contentsline {section}{\numberline {4.2}Step 06 --- Pass C: Total Balanced Inversion (BALNC)}{14}{section.4.2}%
-\contentsline {section}{\numberline {4.3}Step 07 --- Pass D: Piecewise Perturbation Inversion (BALP)}{15}{section.4.3}%
-\contentsline {section}{\numberline {4.4}Step 08 --- Parse Outputs and ERA5 Ertel PV}{16}{section.4.4}%
-\contentsline {section}{\numberline {4.5}Step 09 --- PV Advection by the Induced Winds}{17}{section.4.5}%
-\contentsline {section}{\numberline {4.6}Step 10 --- Fig.\nobreakspace {}8 Replica (the Benchmark Result)}{18}{section.4.6}%
-\contentsline {section}{\numberline {4.7}SI Output Convention (adopted 2026-06-03)}{20}{section.4.7}%
-\contentsline {part}{II\hspace {1em}Wu Python Finite-Difference Port}{21}{part.2}%
-\contentsline {chapter}{\numberline {5}Finite-Difference Operators}{22}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Grid and Map Factors}{22}{section.5.1}%
-\contentsline {section}{\numberline {5.2}Five-Point Laplacian}{23}{section.5.2}%
-\contentsline {section}{\numberline {5.3}Poisson Solver (Red-Black SOR)}{23}{section.5.3}%
-\contentsline {section}{\numberline {5.4}Implicit Vertical Tridiagonal Solver}{23}{section.5.4}%
-\contentsline {section}{\numberline {5.5}Summary: FD vs SH Operators}{24}{section.5.5}%
-\contentsline {chapter}{\numberline {6}Forward PV Computation}{25}{chapter.6}%
-\contentsline {section}{\numberline {6.1}Ertel PV on Sigma Levels}{25}{section.6.1}%
-\contentsline {section}{\numberline {6.2}Balanced Streamfunction}{25}{section.6.2}%
-\contentsline {section}{\numberline {6.3}Boundary Streamfunction from Wind Integration}{25}{section.6.3}%
-\contentsline {section}{\numberline {6.4}Implementation}{26}{section.6.4}%
-\contentsline {chapter}{\numberline {7}The Wu Non-Dimensional BALNC Port (Spherical Harmonics)}{27}{chapter.7}%
-\contentsline {section}{\numberline {7.1}Wu Non-Dimensionalisation}{27}{section.7.1}%
-\contentsline {section}{\numberline {7.2}Vertical Operator: $BB,BH,BL$}{28}{section.7.2}%
-\contentsline {section}{\numberline {7.3}The Coupled BALNC System}{29}{section.7.3}%
-\contentsline {paragraph}{$\psi $-equation (Poisson; \texttt {\_psi\_rhs}).}{29}{section*.22}%
-\contentsline {paragraph}{$H$-equation (modified Helmholtz; \texttt {\_H\_rhs}).}{29}{section*.23}%
-\contentsline {paragraph}{Cross-isobaric / nonlinear terms (\texttt {\_zl\_zp}, \texttt {\_znl}).}{29}{section*.24}%
-\contentsline {section}{\numberline {7.4}SH Realisation of the Wu Operators}{29}{section.7.4}%
-\contentsline {section}{\numberline {7.5}Discrepancies between the Wu FD Reference and the SH Port}{30}{section.7.5}%
-\contentsline {section}{\numberline {7.6}Open Issues / Not Yet Done}{30}{section.7.6}%
-\contentsline {chapter}{\numberline {8}Conclusions and Outlook}{32}{chapter.8}%
-\contentsline {section}{\numberline {8.1}Summary}{32}{section.8.1}%
-\contentsline {section}{\numberline {8.2}Status and Known Limitations}{32}{section.8.2}%
-\contentsline {section}{\numberline {8.3}Next Steps}{33}{section.8.3}%
-\contentsline {chapter}{\numberline {A}Notation Glossary}{34}{appendix.A}%
-\contentsline {chapter}{\numberline {B}Public-API Reference}{35}{appendix.B}%
-\contentsline {section}{\numberline {B.1}Part I --- Wu Fortran reference (\texttt {wu/})}{35}{section.B.1}%
-\contentsline {subsection}{\numberline {B.1.1}\texttt {config.py} (shared)}{35}{subsection.B.1.1}%
-\contentsline {subsection}{\numberline {B.1.2}Fortran programs (\texttt {wu/fortran/})}{35}{subsection.B.1.2}%
-\contentsline {subsection}{\numberline {B.1.3}Step drivers (\texttt {wu/steps/})}{35}{subsection.B.1.3}%
-\contentsline {section}{\numberline {B.2}Part II --- Wu Python finite-difference port (\texttt {wu\_python/})}{35}{section.B.2}%
-\contentsline {subsection}{\numberline {B.2.1}\texttt {wu\_python/core/grid.py}}{35}{subsection.B.2.1}%
-\contentsline {subsection}{\numberline {B.2.2}\texttt {wu\_python/core/nondim.py}}{36}{subsection.B.2.2}%
-\contentsline {subsection}{\numberline {B.2.3}\texttt {wu\_python/core/fd\_ops.py}}{36}{subsection.B.2.3}%
-\contentsline {subsection}{\numberline {B.2.4}\texttt {wu\_python/core/sor\_solver.py}}{36}{subsection.B.2.4}%
-\contentsline {subsection}{\numberline {B.2.5}\texttt {wu\_python/core/pv\_calc.py}}{36}{subsection.B.2.5}%
-\contentsline {subsection}{\numberline {B.2.6}\texttt {wu\_python/core/balance.py} (BALNC)}{36}{subsection.B.2.6}%
-\contentsline {subsection}{\numberline {B.2.7}\texttt {wu\_python/core/piecewise.py} (BALP)}{36}{subsection.B.2.7}%
-\contentsline {subsection}{\numberline {B.2.8}\texttt {wu\_python/config.py}}{36}{subsection.B.2.8}%
-\contentsline {subsection}{\numberline {B.2.9}Step drivers (\texttt {wu\_python/steps/})}{37}{subsection.B.2.9}%
-\contentsline {section}{\numberline {B.3}Shared utilities (\texttt {pvtend.sh\_ops})}{37}{section.B.3}%
+\contentsline {chapter}{\numberline {4}Wu PV to SI Ertel PV: Exact Conversion}{13}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Wu PV Definition}{13}{section.4.1}%
+\contentsline {section}{\numberline {4.2}True SI Ertel PV}{13}{section.4.2}%
+\contentsline {section}{\numberline {4.3}Conversion}{14}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}The Coefficient $c(p)$ is Constant}{14}{subsection.4.3.1}%
+\contentsline {section}{\numberline {4.4}The Residual \nobreakspace {}3.5$\times $ Factor}{14}{section.4.4}%
+\contentsline {section}{\numberline {4.5}Implementation in the Pipeline}{15}{section.4.5}%
+\contentsline {chapter}{\numberline {5}The Wu Pipeline, Step by Step (Benchmark)}{16}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Step 05 --- Pass A/B: Mean and Event PV, Balanced $\psi $}{16}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Step 06 --- Pass C: Total Balanced Inversion (BALNC)}{17}{section.5.2}%
+\contentsline {section}{\numberline {5.3}Step 07 --- Pass D: Piecewise Perturbation Inversion (BALP)}{18}{section.5.3}%
+\contentsline {section}{\numberline {5.4}Step 08 --- Parse Outputs and ERA5 Ertel PV}{19}{section.5.4}%
+\contentsline {section}{\numberline {5.5}Step 09 --- PV Advection by the Induced Winds}{20}{section.5.5}%
+\contentsline {section}{\numberline {5.6}Step 10 --- Fig.\nobreakspace {}8 Replica (the Benchmark Result)}{21}{section.5.6}%
+\contentsline {section}{\numberline {5.7}SI Output Convention (adopted 2026-06-03)}{23}{section.5.7}%
+\contentsline {chapter}{\numberline {6}Conclusions}{24}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Summary}{24}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Key Finding: Wu PV to SI Conversion is Exactly $10^{-8}$}{24}{section.6.2}%
+\contentsline {section}{\numberline {6.3}Status}{25}{section.6.3}%
+\contentsline {section}{\numberline {6.4}Non-Dimensional Scales (Reference)}{25}{section.6.4}%
+\contentsline {chapter}{\numberline {A}Notation Glossary}{26}{appendix.A}%
+\contentsline {chapter}{\numberline {B}Public-API Reference}{27}{appendix.B}%
+\contentsline {section}{\numberline {B.1}Part I --- Wu Fortran reference (\texttt {wu/})}{27}{section.B.1}%
+\contentsline {subsection}{\numberline {B.1.1}\texttt {config.py} (shared)}{27}{subsection.B.1.1}%
+\contentsline {subsection}{\numberline {B.1.2}Fortran programs (\texttt {wu/fortran/})}{27}{subsection.B.1.2}%
+\contentsline {subsection}{\numberline {B.1.3}Step drivers (\texttt {wu/steps/})}{27}{subsection.B.1.3}%
+\contentsline {section}{\numberline {B.2}Part II --- Wu Python finite-difference port (\texttt {wu\_python/})}{27}{section.B.2}%
+\contentsline {subsection}{\numberline {B.2.1}\texttt {wu\_python/core/grid.py}}{27}{subsection.B.2.1}%
+\contentsline {subsection}{\numberline {B.2.2}\texttt {wu\_python/core/nondim.py}}{28}{subsection.B.2.2}%
+\contentsline {subsection}{\numberline {B.2.3}\texttt {wu\_python/core/fd\_ops.py}}{28}{subsection.B.2.3}%
+\contentsline {subsection}{\numberline {B.2.4}\texttt {wu\_python/core/sor\_solver.py}}{28}{subsection.B.2.4}%
+\contentsline {subsection}{\numberline {B.2.5}\texttt {wu\_python/core/pv\_calc.py}}{28}{subsection.B.2.5}%
+\contentsline {subsection}{\numberline {B.2.6}\texttt {wu\_python/core/balance.py} (BALNC)}{28}{subsection.B.2.6}%
+\contentsline {subsection}{\numberline {B.2.7}\texttt {wu\_python/core/piecewise.py} (BALP)}{28}{subsection.B.2.7}%
+\contentsline {subsection}{\numberline {B.2.8}\texttt {wu\_python/config.py}}{28}{subsection.B.2.8}%
+\contentsline {subsection}{\numberline {B.2.9}Step drivers (\texttt {wu\_python/steps/})}{29}{subsection.B.2.9}%
+\contentsline {section}{\numberline {B.3}Shared utilities (\texttt {pvtend.sh\_ops})}{29}{section.B.3}%

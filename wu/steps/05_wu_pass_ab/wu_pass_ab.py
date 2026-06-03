@@ -205,16 +205,18 @@ fig, axes = plt.subplots(1, 3, figsize=(18, 5), subplot_kw={"projection": proj})
 for ax, (k, label) in zip(axes, pv_levels.items()):
     q = np.where(Q_mean[k] >= 9999., np.nan, Q_mean[k])  # mask sentinel
     vm = np.nanpercentile(np.abs(q), 98)
-    ax.set_extent([-175, -35, 5, 88], crs=pc)
+    ax.set_extent([120, -35, 5, 88], crs=pc)
     ax.add_feature(cfeature.COASTLINE, lw=0.4, edgecolor="0.4")
-    cf = ax.pcolormesh(LON2D, LAT2D, q, cmap="RdBu_r", transform=pc,
-                       vmin=-vm, vmax=vm)
+    # contourf (not pcolormesh) so the antimeridian (180°) seam stays closed
+    cf = ax.contourf(LON2D, LAT2D, q, cmap="RdBu_r", transform=pc,
+                     levels=np.linspace(-vm, vm, 21), extend="both")
     plt.colorbar(cf, ax=ax, shrink=0.7, pad=0.02, label="Wu Q (internal units)")
     ax.set_title(f"Mean Ertel PV @ {label}\n[sentinel: {(Q_mean[k]>=9999).sum()} cells]",
                  fontsize=10)
 
 plt.suptitle("Wu Pass A — Mean Climatological Ertel PV (Raw Internal Units)\n"
-             "Not PVU! Converted in Step 08.", fontsize=12, fontweight="bold")
+             "Extended domain 120°E–60°W. Not PVU! Converted in Step 08.",
+             fontsize=12, fontweight="bold")
 plt.tight_layout()
 plt.savefig(STEP_DIR/"wu_mean_pv_3levels.png", dpi=150, bbox_inches="tight")
 print("✓ Saved: wu_mean_pv_3levels.png")
@@ -233,10 +235,11 @@ Q_anom_raw = np.where(mask, np.nan, Q_event - Q_mean)
 fig, axes = plt.subplots(1, 3, figsize=(18, 5), subplot_kw={"projection": proj})
 for ax, (k, label) in zip(axes, pv_levels.items()):
     vm = np.nanpercentile(np.abs(Q_anom_raw[k]), 95)
-    ax.set_extent([-175, -35, 5, 88], crs=pc)
+    ax.set_extent([120, -35, 5, 88], crs=pc)
     ax.add_feature(cfeature.COASTLINE, lw=0.4, edgecolor="0.4")
-    cf = ax.pcolormesh(LON2D, LAT2D, Q_anom_raw[k], cmap="RdBu_r",
-                       transform=pc, vmin=-vm, vmax=vm)
+    # contourf (not pcolormesh) so the antimeridian (180°) seam stays closed
+    cf = ax.contourf(LON2D, LAT2D, Q_anom_raw[k], cmap="RdBu_r",
+                     transform=pc, levels=np.linspace(-vm, vm, 21), extend="both")
     plt.colorbar(cf, ax=ax, shrink=0.7, pad=0.02, label="Wu Q anomaly (internal)")
     ax.set_title(f"Q′ = Q_event − Q_mean @ {label}\n[|max|={np.nanmax(np.abs(Q_anom_raw[k])):.0f}]",
                  fontsize=10)
@@ -280,7 +283,7 @@ psi_500 = PSI_mean[3] * 1.0e5   # restore actual ψ [m²/s]
 
 fig = plt.figure(figsize=(10, 7))
 ax = fig.add_subplot(1,1,1, projection=proj)
-ax.set_extent([-175, -35, 5, 88], crs=pc)
+ax.set_extent([120, -35, 5, 88], crs=pc)
 ax.add_feature(cfeature.COASTLINE, lw=0.4, edgecolor="0.4")
 cf = ax.contourf(LON2D, LAT2D, psi_500, cmap="RdBu_r", transform=pc, levels=20)
 ax.contour(LON2D, LAT2D, psi_500, colors="black", linewidths=0.4, transform=pc,

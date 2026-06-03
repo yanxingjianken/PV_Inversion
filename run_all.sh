@@ -87,11 +87,6 @@ cd "$WU/08_parse_outputs"
 $PY parse_and_pv.py 2>&1 | tail -10
 echo "    ✓ piecewise_psi.nc, pv_advection.nc, pv_comparison_250hPa.png"
 
-echo "  Step 09 — PV advection by induced winds ..."
-cd "$WU/09_pv_advection"
-$PY pv_advection.py 2>&1 | tail -5
-echo "    ✓ pv_advection.nc updated"
-
 echo "  Step 10 — Fig 8 replica ..."
 cd "$WU/10_fig8"
 $PY fig8_replica.py 2>&1 | tail -3

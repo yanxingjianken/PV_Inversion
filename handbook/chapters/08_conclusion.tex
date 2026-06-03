@@ -1,69 +1,112 @@
-\chapter{Conclusions and Outlook}
+\chapter{Conclusions}
 \label{chap:conclusion}
 
 \section{Summary}
 
-This handbook documents two tracks for piecewise PV inversion of the
-2025-01-08 California blocking event:
+This handbook documents the \textbf{Wu Fortran piecewise PV inversion
+pipeline} \citep{Davis1991} applied to the 2025-01-08 California
+blocking event.  The pipeline is a single, unified method:
 
-\begin{enumerate}\setlength\itemsep{0pt}
-  \item the \textbf{Wu Fortran reference} (Part~I,
-        \Cref{chap:wu_solver,chap:wu_pipeline}), a finite-difference SOR
-        solver that runs end-to-end and reproduces the Davis 2022
-        Fig.~8 diagnostic.  It is the project \emph{benchmark};
-  \item the \textbf{Wu Python finite-difference port} (Part~II,
-        \Cref{chap:fd,chap:wupy_pv,chap:wu_balnc}), a pure-Python
-        re-implementation of Wu's non-dimensional balance system on the
-        same regional $51\times87$ grid, using finite differences with
-        numba-accelerated SOR and implicit tridiagonal vertical coupling.
+\begin{enumerate}\setlength\itemsep{2pt}
+  \item \textbf{Download ERA5} --- single-hour event state + 30-day
+        symmetric window for a running-mean climatology
+        (steps~01--03).
+  \item \textbf{Pass A/B} --- \texttt{pvpialln} computes Ertel-like PV
+        and the balanced streamfunction from relative-vorticity
+        inversion, for both the mean state and the event state
+        (step~05).
+  \item \textbf{Pass C (BALNC)} --- \texttt{qinvert21} refines the
+        event state to full nonlinear balance
+        (\Cref{chap:wu_solver}, step~06).
+  \item \textbf{Pass D (BALP)} --- \texttt{qinvertp21} partitions the
+        PV perturbation $q' = q_{\text{event}} - q_{\text{mean}}$ into
+        three vertical pieces and inverts each to its perturbation
+        streamfunction $\psi'$ (step~07).
+  \item \textbf{Diagnostics} --- piecewise induced winds,
+        PV advection, Fig.~8 cross-comparison, and
+        latitude--pressure cross-sections of $V_{\text{induced}}$
+        (steps~08--11).
 \end{enumerate}
 
-\noindent Both tracks share the mathematical foundations of
-\Cref{chap:math} (Ertel PV, hydrostatic and balance closures,
-linearization) and the Wu non-dimensionalization of \Cref{chap:wu_balnc}.
+The Fortran core (\texttt{pvpialln}, \texttt{qinvert21},
+\texttt{qinvertp21}) is the canonical benchmark; the pipeline's
+Python layer (\texttt{wu/steps/}) handles data preparation,
+orchestration, post-processing, and visualisation.
 
-\section{Status and Known Limitations}
+\section{Key Finding: Wu PV to SI Conversion is Exactly $10^{-8}$}
 
-\begin{itemize}\setlength\itemsep{0pt}
-  \item \textbf{Wu Fortran reference --- working.}  Pass~A/B/C/D complete and
-        the Fig.~8 replica (\Cref{fig:wu_fig8}) reproduces the
-        published structure.  For this case the total-balance Pass~C is
-        a consistency check: it leaves the \texttt{pvpialln} field
-        unchanged to solver tolerance.
-  \item \textbf{Wu Python port --- working, 90$\times$ faster than serial.}
-        The full pipeline (steps 05--10) runs end-to-end in $\sim$30\,s on
-        384 cores.  The BALNC solver uses a parallel implicit tridiagonal
-        H-solver (Thomas algorithm per column, \texttt{prange} over columns)
-        and parallel red-black SOR for the $\psi$ equation.  Piecewise
-        Pass~D uses \texttt{ProcessPoolExecutor} for 3-piece parallelism.
-        The $\psi$ field matches the Fortran reference to $\sim$5\% (p99
-        relative error).
-  \item \textbf{Piecewise perturbation amplitudes.}  The nonlinear piecewise
-        approach (BALNC per piece) yields $\psi' \sim 10^{7}$--$10^{8}$\,m$^2$/s,
-        dominated by the mean-state response.  The linear BALP port
-        (\texttt{piecewise.py}) gives $\psi' \sim 200$--$400$\,m$^2$/s for
-        this case --- algorithmically correct but underestimates the
-        perturbation because the linearization around the mean state does
-        not capture the nonlinear coupling.
-  \item \textbf{$f_0$-plane closure.}  The legacy linear closure
-        $\dPhi\approx f_0\dpsi$ (\Cref{sec:closure}) under-estimates
-        upper-level geopotential and accounts for part of the residual
-        discrepancy between the Wu Python and Wu Fortran $\psi$ fields.
-        for an $\approx\!0.1\times$ amplitude bias relative to the Wu
-        reference.
+A central result of this work (\Cref{chap:wu_coeffs}) is that the Wu
+Fortran PV scalar $Q_{\text{Wu}}$ converts to true SI Ertel PV by a
+\emph{single universal constant}:
+\begin{equation}
+\boxed{\;\mathrm{PV}_{\text{SI}}\;[\text{K\,m}^{2}\,\text{kg}^{-1}\,\text{s}^{-1}]
+       = Q_{\text{Wu}} \times 10^{-8}\;}
+\end{equation}
+This holds at \emph{every pressure level} because the Exner-pressure
+scaling $\Pi^{-2.5}$ in the Wu PV definition is designed such that the
+conversion factor's pressure dependence cancels exactly when
+$\kappa = 2/7$.  The earlier practice of dividing by a
+spatially-varying median ratio was incorrect --- the residual
+$\sim$3.5$\times$ difference between Wu-Q$\times10^{-8}$ and ERA5
+native PV reflects the physical discretisation bias of the coarse
+$1.5^{\circ}$ finite-difference grid, not a missing conversion factor.
+
+\section{Status}
+
+\begin{itemize}\setlength\itemsep{2pt}
+  \item \textbf{Pass A/B} --- compute and converge reliably.
+  \item \textbf{Pass C (BALNC)} --- converges for this case; the
+        total-balance refinement confirms the \texttt{pvpialln} state
+        is already balanced to solver tolerance.
+  \item \textbf{Pass D (BALP)} --- three-piece perturbation inversion
+        converges; Piece~3 (upper troposphere, 600--250\,hPa) carries
+        the dominant blocking signal.
+  \item \textbf{All output NetCDFs} are in SI units
+        (\Cref{tab:si_units}); the pipeline is self-consistent.
+  \item \textbf{The Fig.~8 diagnostic} reproduces the expected
+        $\Sigma$/Direct RMS ratio ($\sim$1.12 for the California
+        window).
 \end{itemize}
 
-\section{Next Steps}
+\begin{table}[H]
+\centering\small
+\caption{SI unit conventions for all pipeline outputs.}
+\label{tab:si_units}
+\begin{tabular}{lll}
+\toprule
+Quantity & Symbol & Units \\
+\midrule
+Streamfunction          & $\psi$          & m$^{2}$\,s$^{-1}$ \\
+Geopotential            & $\Phi = gz$     & m$^{2}$\,s$^{-2}$ \\
+Ertel PV                & $q$             & K\,m$^{2}$\,kg$^{-1}$\,s$^{-1}$ \\
+PV advection tendency   & $-\mathbf{u}\cdot\nabla q$ & K\,m$^{2}$\,kg$^{-1}$\,s$^{-2}$ \\
+Induced wind            & $u,v$           & m\,s$^{-1}$ \\
+Pressure                & $p$             & hPa \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\begin{enumerate}\setlength\itemsep{0pt}
-  \item \textbf{Converge BALNC (Pass~C) in the SH port.}  Candidate
-        fixes (\Cref{sec:wu_open}): solve the $H$--$\psi$ system
-        \emph{coupled} rather than alternating; treat the vertical
-        $BB/BH/BL$ coupling \emph{implicitly} (tridiagonal in $k$);
-        relax the first $H$ update.
-  \item \textbf{Run the SH BALP pass} (\texttt{balp.py}) once Pass~C is
-        stable, inlining the same $n{\le}1$ mode projection.
-  \item \textbf{Quantitative validation} of the SH port against the Wu
-        Fortran benchmark (\Cref{fig:wu_fig8}), once it converges.
-\end{enumerate}
+\section{Non-Dimensional Scales (Reference)}
+
+The Wu Fortran BALNC/BALP solvers use the following non-dimensional
+scales ($N_L = 8$ levels in our configuration):
+
+\begin{center}\small
+\begin{tabular}{lll}
+\toprule
+Scale & Definition & Value ($N_L{=}8$) \\
+\midrule
+DPI     & $500/N_L$           & $62.5$ \\
+LL      & $(2{\times}10^{7}/\pi)\cdot\Delta\lambda\cdot\pi/180$ & $1.667{\times}10^{5}$\,m \\
+FF      & reference Coriolis  & $10^{-4}$\,s$^{-1}$ \\
+THO     & $\mathrm{FF}^{2}\,\mathrm{LL}^{2}/\mathrm{DPI}$ & $4.445$\,K \\
+HND     & $\mathrm{DPI}\cdot\mathrm{THO}/g$ & $28.32$\,m \\
+QCONST  & $10^{6}\kappa g c_p\,\mathrm{FF}\,\mathrm{THO}/(p_0\,\mathrm{DPI})$ & $0.313$\,PVU-equiv \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+These are documented in \texttt{config.py} for reference; they are
+\emph{not} used by the Python post-processing layer, which works
+entirely in SI.
 

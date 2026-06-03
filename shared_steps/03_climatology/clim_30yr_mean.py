@@ -105,7 +105,13 @@ else:
     lon_mask = (_clim_lon_360 >= _lon_w) | (_clim_lon_360 <= _lon_e)
 
 lats_out = clim_lat[lat_mask]
-lons_out = clim_lon[lon_mask]
+# Use 0-360 convention and sort so the antimeridian-crossing domain
+# (120 deg E -> 320 deg E) is monotonic. Keeping the raw -180..180 values
+# leaves a 160.5 deg jump at the antimeridian, which makes contourf draw a
+# spurious seam ("spike") and writes a non-monotonic longitude coordinate.
+lons_out = _clim_lon_360[lon_mask]
+_lon_order = np.argsort(lons_out)
+lons_out = lons_out[_lon_order]
 
 nlat_sub = int(lat_mask.sum())
 nlon_sub = int(lon_mask.sum())
@@ -114,10 +120,10 @@ print(f"        lon [{lons_out[0]:.1f}..{lons_out[-1]:.1f}] ({nlon_sub} pts)")
 assert nlat_sub == NY and nlon_sub == NX, \
     f"Grid mismatch! Subset ({nlat_sub},{nlon_sub}) vs config ({NY},{NX})"
 
-mean_t = mean_t[:, lat_mask, :][:, :, lon_mask]
-mean_u = mean_u[:, lat_mask, :][:, :, lon_mask]
-mean_v = mean_v[:, lat_mask, :][:, :, lon_mask]
-mean_z = mean_z[:, lat_mask, :][:, :, lon_mask]
+mean_t = mean_t[:, lat_mask, :][:, :, lon_mask][:, :, _lon_order]
+mean_u = mean_u[:, lat_mask, :][:, :, lon_mask][:, :, _lon_order]
+mean_v = mean_v[:, lat_mask, :][:, :, lon_mask][:, :, _lon_order]
+mean_z = mean_z[:, lat_mask, :][:, :, lon_mask][:, :, _lon_order]
 
 print(f"Mean state shape: t={mean_t.shape}")
 
@@ -165,10 +171,13 @@ if _lon_w <= _lon_e:
 else:
     ev_lon_mask = (_ev_lon_360 >= _lon_w) | (_ev_lon_360 <= _lon_e)
 
-event_t = event_t[:, ev_lat_mask, :][:, :, ev_lon_mask]
-event_u = event_u[:, ev_lat_mask, :][:, :, ev_lon_mask]
-event_v = event_v[:, ev_lat_mask, :][:, :, ev_lon_mask]
-event_z = event_z[:, ev_lat_mask, :][:, :, ev_lon_mask]
+# Match the climatology's monotonic 0-360 longitude ordering.
+_ev_lon_order = np.argsort(_ev_lon_360[ev_lon_mask])
+
+event_t = event_t[:, ev_lat_mask, :][:, :, ev_lon_mask][:, :, _ev_lon_order]
+event_u = event_u[:, ev_lat_mask, :][:, :, ev_lon_mask][:, :, _ev_lon_order]
+event_v = event_v[:, ev_lat_mask, :][:, :, ev_lon_mask][:, :, _ev_lon_order]
+event_z = event_z[:, ev_lat_mask, :][:, :, ev_lon_mask][:, :, _ev_lon_order]
 
 print(f"Event shape: t={event_t.shape}")
 

@@ -174,7 +174,8 @@ for pname in display_order:
 # ## 4. Plot — 3-Panel ψ′ Induced at 250 hPa by Each PV Piece
 #
 # %%
-proj = ccrs.PlateCarree()
+proj = ccrs.PlateCarree(central_longitude=200)  # center on Pacific domain (no 180° seam)
+pc = ccrs.PlateCarree()
 fig, axes = plt.subplots(
     1, 3, figsize=(24, 8),
     subplot_kw={"projection": proj}
@@ -187,7 +188,7 @@ fig.suptitle(
 for ip, (ax, pname) in enumerate(zip(axes, display_order)):
     # --- Map background ---
     ax.set_extent([config.LON_W - 2, config.LON_E + 2,
-                   config.LAT_S - 2, config.LAT_N + 2], crs=proj)
+                   config.LAT_S - 2, config.LAT_N + 2], crs=pc)
     ax.add_feature(cfeature.COASTLINE, lw=0.7, edgecolor="gray")
     ax.add_feature(cfeature.BORDERS, lw=0.4, edgecolor="lightgray")
     ax.add_feature(cfeature.STATES.with_scale("50m"), lw=0.3, edgecolor="lightgray")
@@ -205,7 +206,7 @@ for ip, (ax, pname) in enumerate(zip(axes, display_order)):
     norm = mcolors.BoundaryNorm(cbar_levs, plt.cm.RdBu_r.N)
     psi_field = psi_250[pname]
     cf = ax.contourf(LON2D, LAT2D, psi_field, levels=cbar_levs,
-                     cmap="RdBu_r", norm=norm, transform=proj, extend="both")
+                     cmap="RdBu_r", norm=norm, transform=pc, extend="both")
     cbar = plt.colorbar(cf, ax=ax, orientation="horizontal", pad=0.08,
                         label="ψ′ [m²/s]", fraction=0.05, shrink=0.85)
     cbar.ax.ticklabel_format(style="sci", scilimits=(0, 0), axis="x")
@@ -214,12 +215,12 @@ for ip, (ax, pname) in enumerate(zip(axes, display_order)):
     if len(POS_LEVS) > 0:
         cs_p = ax.contour(LON2D, LAT2D, q_anom_250, levels=POS_LEVS,
                           colors="black", linewidths=0.8, linestyles="solid",
-                          transform=proj)
+                          transform=pc)
         ax.clabel(cs_p, inline=True, fontsize=6, fmt="%.1f")
     if len(NEG_LEVS) > 0:
         cs_n = ax.contour(LON2D, LAT2D, q_anom_250, levels=NEG_LEVS,
                           colors="black", linewidths=0.8, linestyles="dashed",
-                          transform=proj)
+                          transform=pc)
         ax.clabel(cs_n, inline=True, fontsize=6, fmt="%.1f")
 
     # --- Black DASHED: inducing piece mean PV anomaly ---
@@ -227,11 +228,11 @@ for ip, (ax, pname) in enumerate(zip(axes, display_order)):
     if len(dpos) > 0:
         ax.contour(LON2D, LAT2D, pv_mean_piece[pname], levels=dpos,
                    colors="black", linewidths=1.2, linestyles="dashed",
-                   transform=proj)
+                   transform=pc)
     if len(dneg) > 0:
         ax.contour(LON2D, LAT2D, pv_mean_piece[pname], levels=dneg,
                    colors="black", linewidths=1.2, linestyles="dashed",
-                   transform=proj)
+                   transform=pc)
 
     ax.set_title(piece_labels[pname], fontsize=11, fontweight="bold")
 
