@@ -59,3 +59,4 @@ inv3d_ca2025/*.out
 talia_tutorial/inv3d/*.out
 *.nc.bak
 *.grib
+wu_cesm/__pycache__/
