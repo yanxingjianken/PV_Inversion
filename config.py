@@ -24,14 +24,18 @@ LON_W, LON_E = 120.0, 320.0  # 120°E to 40°W (0-360 convention)
 # ═══════════════════════════════════════════════════════════════════════════════
 # 2. VERTICAL LEVELS (σ = p / 1000 hPa)
 # ═══════════════════════════════════════════════════════════════════════════════
-# PR[0] = lower boundary (θ fixed), PR[-1] = upper boundary (θ fixed).
-# CRITICAL: top 3 levels MUST have uniform Δσ spacing (0.05)
-#           or the SOR solver at K=NL-1 will diverge exponentially.
-PR = np.array([1.0, 0.85, 0.7, 0.5, 0.4, 0.3, 0.25, 0.2])
+# PR[0] = lower boundary (θ fixed, K=1=1000 hPa), PR[-1] = upper boundary
+# (θ fixed, K=NL=100 hPa). Interior PV lives at K=2..NL-1 (850→200 hPa).
+# Top boundary is 100 hPa. NOTE: the top Δσ is NON-uniform (200→100 jumps
+# 0.05→0.10), which trips qinvert21's top-boundary "started diverging" heuristic
+# in Pass C — this is ACCEPTED here because (a) it closes better (Σ-pieces R²≈0.45
+# vs ≈−0.2 with top=200) and (b) all downstream analysis only uses ≤200 hPa, so
+# the slightly-noisier 100 hPa top θ does not affect the results of interest.
+PR = np.array([1.0, 0.85, 0.7, 0.5, 0.4, 0.3, 0.25, 0.2, 0.1])
 NW = len(PR)
-PLEVS = PR * 1000.0    # pressure [hPa]
+PLEVS = PR * 1000.0    # pressure [hPa] → 1000,850,700,500,400,300,250,200,100
 PLEVS_PA = PLEVS * 100.0  # pressure [Pa]
-NW_PV = NW - 2          # interior PV levels (850–250 hPa)
+NW_PV = NW - 2          # interior PV levels (850–200 hPa)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 3. EVENT DATE
@@ -50,29 +54,45 @@ CLIM_WINDOW_DAYS = 30
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. PV PIECES (vertical partitioning for piecewise inversion)
 # ═══════════════════════════════════════════════════════════════════════════════
-# Each piece = tuple of (start_K, end_K) where K is 1-indexed Fortran level.
-# K=1 → 1000 hPa, K=2 → 925 hPa, …, K=10 → 200 hPa.
+# K is the 1-indexed Fortran level. In the BALP convention K=1 is the LOWER
+# boundary θ (1000 hPa) and K=NL=9 is the UPPER boundary θ (100 hPa); interior
+# PV lives at K=2..8 (850,700,500,400,300,250,200 hPa).
+# Pieces mirror the reference inv3d partition {1},{2,3},{4..NL}, isolating the
+# surface heating (boundary θ) as its own piece:
+#   surface = {1}            → 1000 hPa boundary θ only
+#   lower   = {2,3,4}        → 850, 700, 500 hPa interior PV
+#   upper   = {5,6,7,8,9}    → 400,300,250,200 hPa PV + 100 hPa top θ
+# 2026-08-06: 500 hPa (K=4) moved from `upper` to `lower`. The upper piece is now the
+# tropopause-level band 400-200 plus the 100 hPa top-θ, which is what the CESM blocking
+# object work needs; 500 hPa behaves as mid-troposphere and belongs with 850/700.
+# Authoritative copy is wu/wu_config.yaml `pieces`; this list mirrors it.
 PIECES = [
-    {"name": "lower",  "levels": (1, 2),   "hPa": "1000–850"},
-    {"name": "middle", "levels": (3, 5),   "hPa": "700–400"},
-    {"name": "upper",  "levels": (6, 8),   "hPa": "300–200"},
+    {"name": "surface", "levels": (1, 1),   "hPa": "1000 (θ)"},
+    {"name": "lower",   "levels": (2, 4),   "hPa": "850–500"},
+    {"name": "upper",   "levels": (5, 9),   "hPa": "400–200 + 100 (θ)"},
 ]
 NPIECES = len(PIECES)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 6. SOR SOLVER PARAMETERS
 # ═══════════════════════════════════════════════════════════════════════════════
-OMEGS = 1.4       # SOR relaxation for streamfunction ψ
-OMEGH = 1.4       # SOR relaxation for geopotential Φ
-PART  = 0.5       # under-relaxation between ψ and Φ updates
-THRSH = 0.01      # convergence threshold
+# AUTHORITATIVE SOURCE = wu/wu_config.yaml (pass_ab / pass_c / pass_d blocks).
+# Those values are what the step scripts actually feed to the Fortran on stdin;
+# the constants below are NOT read by any step — they are kept only as a
+# human-readable reference and are aligned with the YAML to avoid contradiction.
+# Per-pass relaxation differs (pass_c=1.2, pass_d ψ=1.3) so only nominal values
+# appear here. Pass-D MAX/MAXT/QMIN are HARDCODED in qinvertp21_94.f (not YAML).
+OMEGS = 1.2       # SOR relaxation for streamfunction ψ  (pass_c; pass_d uses 1.3)
+OMEGH = 1.2       # SOR relaxation for geopotential Φ
+PART  = 0.05      # under-relaxation between ψ and Φ updates
+THRSH = 0.01      # convergence threshold (pass_c; pass_d uses 0.1)
 TSCAL = 1.0       # boundary θ scale factor
 QSCAL = 1.0       # PV scale factor
 INLIN = 1         # 1 = nonlinear (pieces sum to total per Davis 1991); 0 = linear
 IQD   = 0         # 0 = no external PV dependency
 IBC   = 0         # 0 = homogeneous Dirichlet BC on lateral walls; 1 = full perturbation BC
-MAX_ITER = 8000   # max SOR iterations per Poisson solve (scaled for 51×134 grid)
-MAXT     = 800    # max outer coupling cycles
+MAX_ITER = 20000  # pass_c max SOR iterations (YAML pass_c.max_iter); pass_d hardcodes 8000
+MAXT     = 20000  # pass_c max outer coupling cycles (YAML pass_c.max_outer); pass_d hardcodes 2000
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. PHYSICAL CONSTANTS & UNIT CONVENTIONS

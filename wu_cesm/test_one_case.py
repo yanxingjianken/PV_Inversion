@@ -122,26 +122,6 @@ def _r2(y_true, y_pred):
     return 1.0 - ss_res / max(ss_tot, 1e-30)
 
 
-def _fill_below_ground(z, t, u, v, plevs):
-    """Fill below-ground NaN (1000/850 hPa under terrain & cold high-lat) so the
-    Wu SOR solver — which is not NaN-aware — converges. T,U,V: constant downward
-    extrapolation from the lowest valid level; z: hydrostatic downward
-    (z_k = z_{k+1} + Rd·T̄/g · ln(p_{k+1}/p_k), p_k>p_{k+1} ⇒ height decreases).
-    plevs descending in altitude index order [1000(idx0)…100(idx8)]."""
-    z, t, u, v = (x.copy() for x in (z, t, u, v))
-    Rd, g = 287.05, 9.80665
-    nl = z.shape[0]
-    for k in range(nl - 2, -1, -1):     # fill lower (higher-p) levels from above
-        m = ~np.isfinite(t[k])
-        t[k][m] = t[k + 1][m]
-        u[k][~np.isfinite(u[k])] = u[k + 1][~np.isfinite(u[k])]
-        v[k][~np.isfinite(v[k])] = v[k + 1][~np.isfinite(v[k])]
-        mz = ~np.isfinite(z[k])
-        dz = (Rd * 0.5 * (t[k] + t[k + 1]) / g) * np.log(plevs[k + 1] / plevs[k])
-        z[k][mz] = (z[k + 1] + dz)[mz]
-    return z, t, u, v
-
-
 def _nrms(resid, signal):
     return (np.sqrt(np.nanmean(resid ** 2))
             / max(np.sqrt(np.nanmean(signal ** 2)), 1e-30))
@@ -175,25 +155,23 @@ def main():
     lon_idx = (np.arange(2 * pad + 1) + (ilon - pad)) % nlon
     ny, nx = band.size, lon_idx.size
     lon_win = np.rad2deg(np.unwrap(np.deg2rad(lon[lon_idx])))
-    # zhdr: the Fortran reconstructs row latitude as HDR(3)-(I-1)*HDR(6) and uses
-    # HDR(5) for the zonal grid distance — i.e. it needs HDR(6)=Δlat, HDR(5)=Δlon.
-    # pvtend's _ppvi_geom passes [..,dlat,dlon,..] which only works on the
-    # isotropic ERA5 grid (dlat==dlon); on anisotropic f09 we must pass dlon at
-    # index 4 and dlat at index 5 so the latitudes reconstruct correctly.
+    # Standard pvtend zhdr convention [lat_s, lon_w, lat_n, lon_e, dlat, dlon,
+    # nx, ny]. pvtend ≥2.13 reorders dlat/dlon internally to the Fortran's
+    # HDR(5)=Δlon / HDR(6)=Δlat convention, so anisotropic f09 inverts correctly
+    # with this standard header (no caller-side workaround needed).
     zhdr = np.array([band_lats[-1], 0.0, band_lats[0], (nx - 1) * dlon,
-                     dlon, dlat, nx, ny], dtype=np.float32)
+                     dlat, dlon, nx, ny], dtype=np.float32)
     log(f"band: {ny} lats {band_lats[0]:.2f}→{band_lats[-1]:.2f}N | "
         f"lon window: {nx} pts {lon_win[0]:.1f}→{lon_win[-1]:.1f} | dlat={dlat:.3f} dlon={dlon:.2f}")
 
     def crop(a3d):
         return a3d[:, band][:, :, lon_idx]
 
-    # cubes (NL, ny, nx), N→S. CESM z is HEIGHT [m] → H = z (no /g).
-    # Fill below-ground NaN first (Wu SOR is not NaN-aware).
-    H_e, T_e, U_e, V_e = _fill_below_ground(
-        crop(ev["z"]), crop(ev["t"]), crop(ev["u"]), crop(ev["v"]), WU_PLEVS)
-    H_m, T_m, U_m, V_m = _fill_below_ground(
-        crop(cl["z"]), crop(cl["t"]), crop(cl["u"]), crop(cl["v"]), WU_PLEVS)
+    # Raw cropped cubes (NL, ny, nx), N→S, WITH below-ground NaN. CESM z is
+    # HEIGHT [m] → H = z (no /g). invert_piecewise (pvtend ≥2.13, fill_nan=True
+    # default) hydrostatically gap-fills the below-ground NaN itself.
+    H_e, T_e, U_e, V_e = crop(ev["z"]), crop(ev["t"]), crop(ev["u"]), crop(ev["v"])
+    H_m, T_m, U_m, V_m = crop(cl["z"]), crop(cl["t"]), crop(cl["u"]), crop(cl["v"])
     pv_e_band, pv_m_band = crop(ev["pv"]), crop(cl["pv"])
     urc_b, vrc_b = crop(ur_c), crop(vr_c)
     ure_b, vre_b = crop(ur_e), crop(vr_e)

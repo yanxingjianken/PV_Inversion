@@ -7,7 +7,7 @@
 #
 # **Two references:**
 # - **Ref A**: Single all-levels BALP inversion (run qinvert​p21 with NOUT=1,
-#   piece spanning levels 1–8). Exact test of solver linearity.
+#   piece spanning levels 1–9). Exact test of solver linearity.
 # - **Ref B**: observed ψ′ from inverting ζ′ of (u_event−u_clim, v_event−v_clim).
 #   Tests reconstruction of the real balanced perturbation.
 #
@@ -74,10 +74,10 @@ for ip in range(NPIECES):
     for k in range(NW):
         SP[ip, k] = _vp_raw[base + k*block: base + (k+1)*block].reshape(NY, NX)
 # Actual ψ′ in m²/s: SP is non-dim ψ′ ÷ 1e5
-PSI_pieces = SP * 1.0e5  # (3, 8, 51, 87)
+PSI_pieces = SP * 1.0e5  # (3, 9, 51, 87)
 
 # Sum of piecewise ψ′
-PSI_sum = np.sum(PSI_pieces, axis=0)  # (8, 51, 87)
+PSI_sum = np.sum(PSI_pieces, axis=0)  # (9, 51, 87)
 
 
 # %% [markdown]
@@ -97,7 +97,7 @@ def read_wu_ascii(fp):
 # Check if event_total.out already exists (skip re-run)
 total_out = WU_DIR / "event_total.out"
 if not total_out.exists():
-    print("Running single all-levels BALP inversion (NOUT=1, piece 1–8)...")
+    print("Running single all-levels BALP inversion (NOUT=1, piece 1–9)...")
     os.chdir(str(WU_DIR))
     exe = BUILD_DIR / "qinvertp21.exe"
     for fn in ["event_total.out"]:
@@ -158,7 +158,7 @@ import xarray as xr
 import pvtend.helmholtz as hel
 
 # 1. Load Global Event Data & extract global psi
-_ds_event_global = xr.open_dataset("/net/flood/data2/users/x_yan/pv_ertel_compute/era_sanity_check/data/era5_2025-01-08_00z_pl.nc")
+_ds_event_global = xr.open_dataset("/net/flood/data2/users/x_yan/pv_ertel_compute/test00_era5_sanity_check/data/era5_2025-01-08_00z_pl.nc")
 dim_p = "pressure_level" if "pressure_level" in _ds_event_global.dims else "level"
 _ds_event_global = _ds_event_global.sel({dim_p: PLEVS})
 _ds_event_global = _ds_event_global.isel(valid_time=0) if "valid_time" in _ds_event_global.dims else _ds_event_global.isel(time=0)
@@ -187,8 +187,8 @@ clim_lon = _ds_base_clim.longitude.values
 _ds_clim_u = xr.open_dataset("/net/flood/data2/users/x_yan/era/clim/era5_hourly_clim_1990-2020_jan_u_helmholtz.nc")
 _ds_clim_v = xr.open_dataset("/net/flood/data2/users/x_yan/era/clim/era5_hourly_clim_1990-2020_jan_v_helmholtz.nc")
 
-u_rot_clim = _ds_clim_u["u_rot_bar"].isel(day=7, hour=0, pressure_level=slice(0, 8)).values
-v_rot_clim = _ds_clim_v["v_rot_bar"].isel(day=7, hour=0, pressure_level=slice(0, 8)).values
+u_rot_clim = _ds_clim_u["u_rot_bar"].isel(day=7, hour=0, pressure_level=slice(0, NW)).values
+v_rot_clim = _ds_clim_v["v_rot_bar"].isel(day=7, hour=0, pressure_level=slice(0, NW)).values
 
 if clim_lat[0] > clim_lat[-1]:
     clim_lat = clim_lat[::-1]
@@ -215,7 +215,7 @@ PSI_total_B = psi_ev_reg - psi_cl_reg
 #
 # %%
 # Residuals at each level
-residual_A = PSI_sum - PSI_total_A  # (8, 51, 87)
+residual_A = PSI_sum - PSI_total_A  # (9, 51, 87)
 residual_B = PSI_sum - PSI_total_B
 
 # RMS per level (domain-wide)
@@ -353,7 +353,7 @@ ax_sc.ticklabel_format(style="sci", scilimits=(0, 0), axis="both")
 ax_vp = fig.add_subplot(3, 3, 8)
 ax_vp.plot(nrms_A * 100, PLEVS, "o-", color="C0", label="Ref A (single BALP)", lw=2)
 ax_vp.plot(nrms_B * 100, PLEVS, "s--", color="C1", label="Ref B (obs winds)", lw=2)
-ax_vp.set_ylim(1000, 200)
+ax_vp.set_ylim(1000, 100)
 ax_vp.set_yticks(PLEVS)
 ax_vp.set_ylabel("Pressure [hPa]")
 ax_vp.set_xlabel("Normalized RMS residual [%]")
@@ -367,7 +367,7 @@ ax_vp.axvline(x=0, color="gray", lw=0.5, ls=":")
 ax_rms = fig.add_subplot(3, 3, 9)
 ax_rms.plot(rms_A_per_level, PLEVS, "o-", color="C0", label="Ref A", lw=2)
 ax_rms.plot(rms_B_per_level, PLEVS, "s--", color="C1", label="Ref B", lw=2)
-ax_rms.set_ylim(1000, 200)
+ax_rms.set_ylim(1000, 100)
 ax_rms.set_yticks(PLEVS)
 ax_rms.set_xlabel("RMS residual [m²/s]")
 ax_rms.set_title("Vertical Profile: RMS Residual", fontsize=9)

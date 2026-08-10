@@ -60,3 +60,11 @@ talia_tutorial/inv3d/*.out
 *.nc.bak
 *.grib
 wu_cesm/__pycache__/
+
+# Cached inversion state — the scripts in single_peak_blocking_evt/ rebuild it (~5 min)
+wu_cesm/single_peak_blocking_evt/_cache.npz
+# Pre-500hPa-move backups
+*.bak-pre500
+# Large local data / audit trees (not code)
+claude_cyclone_audit/
+data/archive_*/

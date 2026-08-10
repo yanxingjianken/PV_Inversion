@@ -1,11 +1,11 @@
 # %% [markdown]
-# Step 03 — 30-Year Climatology (1990–2020) + Event Snapshot (8 levels, no interp)
+# Step 03 — 30-Year Climatology (1990–2020) + Event Snapshot (9 levels, no interp)
 #
-# **Wu levels now match clim levels exactly** (minus 100 hPa):
-# [1000, 850, 700, 500, 400, 300, 250, 200] — 8 levels.
-# Clim has 9 levels [1000,850,700,500,400,300,250,200,100]; we drop 100 hPa.
+# **Wu levels** = [1000, 850, 700, 500, 400, 300, 250, 200] — 8 levels (clim has a
+# 9th level, 100 hPa, which is dropped to keep the top boundary uniform Δσ=0.05).
+# K=1 (1000 hPa) = lower-boundary θ, K=8 (200 hPa) = upper-boundary θ.
 #
-# **No vertical interpolation needed** — clim and Wu share the same levels.
+# **No vertical interpolation needed** — Wu levels are a subset of clim levels.
 #
 # **Pass A still computes PV** from the mean-state (u,v,t,z) via pvpialln.
 # We do NOT feed pre-computed PV to Pass A. The pre-computed 30yr PV from
@@ -42,11 +42,11 @@ MONTH_ABBR = {1:"jan",2:"feb",3:"mar",4:"apr",5:"may",6:"jun",
               7:"jul",8:"aug",9:"sep",10:"oct",11:"nov",12:"dec"}
 EVENT_MONTH_ABBR = MONTH_ABBR[config.EVENT_MONTH]
 
-# ---- Wu target grid (now 8 levels, same as clim minus 100 hPa) ----
+# ---- Wu target grid (9 levels; top boundary 100 hPa, non-uniform top accepted) ----
 NX, NY = config.NX, config.NY
 LAT_N, LAT_S = config.LAT_N, config.LAT_S
 LON_W, LON_E = config.LON_W, config.LON_E
-WU_LEVS = np.array([1000, 850, 700, 500, 400, 300, 250, 200], dtype=float)
+WU_LEVS = config.PLEVS.astype(float)  # 1000,850,700,500,400,300,250,200,100
 NW = len(WU_LEVS)
 
 # ---- Event date ----
@@ -78,17 +78,18 @@ clim_lon  = clim_vars["t"].longitude.values.astype(float)
 
 print(f"\nClim native: {len(clim_plev)} levels = {list(clim_plev)} hPa")
 
-# Drop 100 hPa — keep first 8 levels (exact match with Wu levels)
-drop_100 = clim_plev != 100.0
-clim_plev_8 = clim_plev[drop_100]
-print(f"After dropping 100 hPa: {len(clim_plev_8)} levels = {list(clim_plev_8)} hPa")
-assert np.allclose(clim_plev_8, WU_LEVS), f"Level mismatch! clim={list(clim_plev_8)} vs wu={list(WU_LEVS)}"
+# Select the Wu levels (1000…200; K=1=1000 bottom θ, K=NL=200 top θ). 100 hPa is
+# dropped so the top stays uniform Δσ=0.05.
+sel = np.isin(clim_plev, WU_LEVS)
+clim_plev_sel = clim_plev[sel]
+print(f"Selected {len(clim_plev_sel)} Wu levels = {list(clim_plev_sel)} hPa")
+assert np.allclose(clim_plev_sel, WU_LEVS), f"Level mismatch! clim={list(clim_plev_sel)} vs wu={list(WU_LEVS)}"
 print("✓ Clim levels match Wu levels exactly — no interpolation needed!")
 
-mean_t = clim_vars["t"].values[drop_100]  # (8, 61, 240)
-mean_u = clim_vars["u"].values[drop_100]
-mean_v = clim_vars["v"].values[drop_100]
-mean_z = clim_vars["z"].values[drop_100]
+mean_t = clim_vars["t"].values[sel]
+mean_u = clim_vars["u"].values[sel]
+mean_v = clim_vars["v"].values[sel]
+mean_z = clim_vars["z"].values[sel]
 
 # %% [markdown]
 # ## 3. Subset to CA Domain (1.5° NH → same resolution, no coarsening)
@@ -128,10 +129,10 @@ mean_z = mean_z[:, lat_mask, :][:, :, lon_mask][:, :, _lon_order]
 print(f"Mean state shape: t={mean_t.shape}")
 
 # %% [markdown]
-# ## 4. Load Event Data (Jan 8 00Z) — subset to 8 levels (no re-download needed)
+# ## 4. Load Event Data (Jan 8 00Z) — subset to the 8 Wu levels
 #
-# Existing ERA5 data has 10 levels. We subset to the same 8 levels as the clim.
-# Future downloads will use 8 levels directly (see shared_steps/01_download/).
+# The event ERA5 file may have extra levels (e.g. 100 hPa); np.isin keeps only
+# the 8 levels that match WU_LEVS (1000…200).
 #
 # %%
 event_fname = f"era5_{EVENT_YR:04d}-{config.EVENT_MONTH:02d}-{EVENT_DAY:02d}_00Z.nc"
@@ -151,12 +152,12 @@ ev_lon  = ds_ev.longitude.values.astype(float)
 # Sort lat descending (N→S) and lon ascending (W→E)
 ds_ev = ds_ev.sortby("latitude", ascending=False).sortby("longitude")
 
-# Subset to 8 Wu levels from existing 10-level data
+# Subset to the Wu levels (re-downloaded event already has exactly these 9)
 ev_keep = np.isin(ev_plev, WU_LEVS)
-ev_plev_8 = ev_plev[ev_keep]
-print(f"Event native levels: {list(ev_plev)} → kept {len(ev_plev_8)}: {list(ev_plev_8)}")
-assert np.allclose(ev_plev_8, WU_LEVS), \
-    f"Event level mismatch! {list(ev_plev_8)} vs {list(WU_LEVS)}"
+ev_plev_k = ev_plev[ev_keep]
+print(f"Event native levels: {list(ev_plev)} → kept {len(ev_plev_k)}: {list(ev_plev_k)}")
+assert np.allclose(ev_plev_k, WU_LEVS), \
+    f"Event level mismatch! {list(ev_plev_k)} vs {list(WU_LEVS)}"
 
 event_t = ds_ev["t"].values[ev_keep]
 event_u = ds_ev["u"].values[ev_keep]

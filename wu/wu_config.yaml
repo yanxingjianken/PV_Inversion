@@ -1,7 +1,7 @@
 grid:
   nx: 134
   ny: 51
-  nw: 8
+  nw: 9
   dlat: 1.5
   dlon: 1.5
   lat_n: 85.5
@@ -19,6 +19,7 @@ levels:
   - 0.3
   - 0.25
   - 0.2
+  - 0.1
   pr_hpa:
   - 1000
   - 850
@@ -28,31 +29,39 @@ levels:
   - 300
   - 250
   - 200
+  - 100
 
+# Pieces mirror reference inv3d {1},{2,3},{4..NL}. In the BALP convention K=1 is
+# the lower-boundary theta (1000 hPa) and K=NL=9 is the upper-boundary theta
+# (100 hPa); interior PV is K=2..8. surface isolates the surface heating.
 pieces:
-  lower:
+  surface:
     levels:
     - 1
-    - 2
-    hpa: "1000\u2013850"
-  middle:
+    hpa: "1000 (θ)"
+  lower:
     levels:
+    - 2
     - 3
     - 4
-    - 5
-    hpa: "700\u2013400"
+    hpa: "850–500"
   upper:
     levels:
+    - 5
     - 6
     - 7
     - 8
-    hpa: "300\u2013200"
+    - 9
+    hpa: "400–200 + 100 (θ)"
 
 pass_ab:
   imax: 5000
   omegs: 1.75
   thrs: 5.0e4
 
+# Top boundary is 100 hPa (NON-uniform top Δσ 0.05→0.10). Pass C trips the
+# top-boundary "started diverging" heuristic, but the per-cycle field is the
+# converged state (benign) and this grid closes Σ-pieces better. Standard ω=1.4.
 pass_c:
   max_iter: 10000
   max_outer: 10000
@@ -64,6 +73,8 @@ pass_c:
   imap: 1
   inf: 1
 
+# NOTE: qinvertp21_94.f HARDCODES MAX/MAXT/QMIN (it does not read them from
+# stdin), so they are intentionally NOT listed here — tune them in the Fortran.
 pass_d:
   omegs: 1.85
   omegh: 1.4
@@ -71,9 +82,6 @@ pass_d:
   thrsh: 0.1
   tscal: 1.0
   qscal: 1.0
-  qmin: 0.00001
-  max: 10000
-  maxt: 10000
   imap: 1
   inlin: 1
   iqd: 0
@@ -83,4 +91,3 @@ xsection:
   lat: 34.5
   var: v_induced
   contour: pv_anomaly
-

@@ -4,10 +4,12 @@
 # The `qinvertp21` program (BALP subroutine) partitions the PV perturbation
 # q′ = q_event − q_mean into **3 vertical pieces** and inverts each independently.
 #
-# **Pieces** (from wu_config.yaml, NW=8 levels [1000,850,700,500,400,300,250,200]):
-# - Piece 1 (lower):  K={1,2}   → 1000–850 hPa
-# - Piece 2 (middle): K={3,4,5} → 700–400 hPa
-# - Piece 3 (upper):  K={6,7,8} → 300–200 hPa
+# **Pieces** (from wu_config.yaml, NW=9 levels [1000,850,700,500,400,300,250,200,100]).
+# In the BALP convention K=1 = lower-boundary θ (1000 hPa), K=NL=9 = upper-boundary
+# θ (100 hPa); interior PV is K=2..8. Pieces mirror reference inv3d {1},{2,3},{4..NL}:
+# - Piece 1 (surface): K={1}          → 1000 hPa boundary θ only
+# - Piece 2 (lower):   K={2,3}        → 850, 700 hPa interior PV
+# - Piece 3 (upper):   K={4,5,6,7,8,9}  → 500,400,300,250,200 hPa PV + 100 hPa top θ
 #
 # **INLIN=1** — nonlinear terms in operator coefficients (Davis 1991, Section 2.5).
 # Ensures Σ(pieces) = total perturbation.
@@ -58,7 +60,7 @@ for _pname, _pinfo in _pieces.items():
 NW = config.NW
 NPIECES = config.NPIECES
 
-# HOUT and SIOUT: output all 8 levels
+# HOUT and SIOUT: output all 9 levels
 _hout_list = ",".join(str(i) for i in range(1, NW + 1))
 _siout_list = _hout_list
 
@@ -83,8 +85,9 @@ _common_suffix = f"""{_pd['imap']}
 1
 """
 
-# Build stdin for each piece
-_piece_names = ["lower", "middle", "upper"]
+# Build stdin for each piece (order = YAML pieces order → on-disk piece index).
+# Now: surface, lower, upper (QLV {1}, {2,3}, {4..9}).
+_piece_names = list(_pieces.keys())
 _stdins = {}
 for idx, _pname in enumerate(_piece_names):
     _qlv = _piece_qlv[_pname]
@@ -225,12 +228,16 @@ LON2D, LAT2D = np.meshgrid(lons, lats)
 proj = ccrs.LambertConformal(central_longitude=-105, central_latitude=50)
 pc   = ccrs.PlateCarree()
 
-piece_titles = ["(a) Lower: 1000–850 hPa", "(b) Middle: 700–400 hPa",
-                "(c) Upper: 300–200 hPa"]
+# Titles from YAML pieces, in on-disk order (= _piece_names = surface, lower, upper)
+_letters = "abcdefgh"
+piece_titles = [
+    f"({_letters[i]}) {pn.capitalize()}: {_pieces[pn]['hpa']} hPa"
+    for i, pn in enumerate(_piece_names)
+]
 
 fig, axes = plt.subplots(1, 3, figsize=(20, 6), subplot_kw={"projection": proj})
 for ip, (ax, title) in enumerate(zip(axes, piece_titles)):
-    psi = SP[ip, 6] * 1.0e5   # actual ψ' at 250 hPa (idx 6 of 8)
+    psi = SP[ip, 6] * 1.0e5   # actual psi at 250 hPa (idx 6 of 9)
     vm = np.percentile(np.abs(psi), 98)
     ax.set_extent([-175, -35, 5, 88], crs=pc)
     ax.add_feature(cfeature.COASTLINE, lw=0.4, edgecolor="0.4")

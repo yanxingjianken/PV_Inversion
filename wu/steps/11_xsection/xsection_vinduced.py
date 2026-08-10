@@ -1,10 +1,13 @@
 # %% [markdown]
-# Step 11 — Cross-Section: Meridional Wind Induced by Upper/Middle/Lower PV Anomalies
+# Step 11 — Cross-Section: Meridional Wind Induced by surface/lower/upper PV pieces
 #
 # **Cross-section at Southern California latitude (34.5°N).**
-# Plots 3 panels (upper/middle/lower pieces) showing:
-# - **Filled**: V_induced (meridional wind, m/s) — log-p y-axis (200→1000 hPa)
-# - **Contours**: PV anomaly (PVU) for that piece's pressure levels
+# Plots 3 panels (upper/lower/surface pieces). For each piece, piecewise PV
+# inversion inverts ONLY that piece's PV anomaly (zero elsewhere), so each panel
+# shows a matched (source PV, induced wind) pair:
+# - **Filled**: v' induced by inverting this piece's PV anomaly (m/s), full column
+# - **Contours**: this piece's *source* PV anomaly (PVU), confined to its levels
+# - log-p y-axis (1000→100 hPa)
 #
 # Reads: `piecewise_psi.nc` + ERA5 `mean_clim.nc` / `event.nc`
 #
@@ -79,7 +82,7 @@ PV_mean = ertel_pv_3d(
 PV_event = ertel_pv_3d(
     ds_event["t"].values, ds_event["u"].values, ds_event["v"].values,
     plev_Pa, lats_arr)
-PV_anom = PV_event - PV_mean  # (10, 51, 87) — SI
+PV_anom = PV_event - PV_mean  # (nlev, nlat, nlon) — SI units
 
 print(f"PV anomaly range @ all levels: "
       f"[{PV_anom.min()*1e6:.2f}, {PV_anom.max()*1e6:.2f}] PVU  "
@@ -90,26 +93,31 @@ print(f"PV anomaly range @ all levels: "
 #
 # %%
 # Slice at target latitude
-V_xsec = V_ind[:, :, lat_idx, :]    # (3, 10, 87) — piece × plev × lon
-PV_xsec = PV_anom[:, lat_idx, :]    # (10, 87) — plev × lon
+V_xsec = V_ind[:, :, lat_idx, :]        # (3, nlev, nlon) — piece × plev × lon
+PV_xsec = PV_anom[:, lat_idx, :] * 1e6  # (nlev, nlon) — plev × lon, in PVU
 
-# Piece definitions from YAML (Fortran 1-indexed K → Python 0-indexed k)
-piece_names = ["upper", "middle", "lower"]  # display order: upper at top, lower at bottom
-piece_labels = {
-    "upper": f"Upper ({_pieces['upper']['hpa']} hPa)",
-    "middle": f"Middle ({_pieces['middle']['hpa']} hPa)",
-    "lower": f"Lower ({_pieces['lower']['hpa']} hPa)",
-}
+# Piece definitions from YAML (Fortran 1-indexed K → Python 0-indexed k).
+# piecewise_psi.nc stores pieces in the order wu_pass_d.py wrote them = the YAML
+# pieces order (surface, lower, upper). Map name → file index explicitly so the
+# induced wind and its source overlay stay matched.
+# BALP convention: K=1 (index 0, 1000 hPa) = lower-boundary θ; K=NL=9 (index 8,
+# 100 hPa) = upper-boundary θ; interior PV is K=2..8 (indices 1..7, 850..200).
+nlev = len(plevs)
+INTERIOR = set(range(1, nlev - 1))  # indices with genuine inverted PV (850..200)
+
+FILE_PIECE_ORDER = list(_pieces.keys())  # surface, lower, upper (= on-disk piece index)
+piece_data_idx = {name: FILE_PIECE_ORDER.index(name) for name in FILE_PIECE_ORDER}
+
+piece_names = list(reversed(FILE_PIECE_ORDER))  # display: upper at left → surface at right
+piece_labels = {p: f"{p.capitalize()} ({_pieces[p]['hpa']} hPa)" for p in FILE_PIECE_ORDER}
 # Map piece name → K indices (1-indexed → 0-indexed)
-piece_k = {
-    pname: [k - 1 for k in _pieces[pname]["levels"]]
-    for pname in piece_names
-}
+piece_k = {p: [k - 1 for k in _pieces[p]["levels"]] for p in FILE_PIECE_ORDER}
 
-print("Piece level indices (0-indexed):")
+print("Piece level indices (0-indexed) and file index:")
 for pname in piece_names:
     km = piece_k[pname]
-    print(f"  {pname}: K={[k+1 for k in km]} → {[plevs[k] for k in km]} hPa")
+    print(f"  {pname}: file_idx={piece_data_idx[pname]}  "
+          f"K={[k+1 for k in km]} → {[plevs[k] for k in km]} hPa")
 
 # %% [markdown]
 # ## 3. Plot — 3-Panel Cross-Section (Meridional Wind + PV Anomaly Contours)
@@ -117,11 +125,17 @@ for pname in piece_names:
 # %%
 LON2D, PLEV2D = np.meshgrid(lons, plevs)
 
+# Common PV contour scaling across all panels (PVU) so intervals are comparable.
+pv_vm = np.nanpercentile(np.abs(PV_xsec), 99)
+n_levels = 12
+pos_levels = np.linspace(pv_vm / n_levels, pv_vm, n_levels // 2)
+neg_levels = np.linspace(-pv_vm, -pv_vm / n_levels, n_levels // 2)
+
 fig, axes = plt.subplots(1, 3, figsize=(22, 8), sharey=True)
 
 for ip, (ax, pname) in enumerate(zip(axes, piece_names)):
-    # Filled: V_induced from this piece
-    v_piece = V_xsec[ip]  # (10, 87)
+    # Filled: V_induced from this piece (index into file's piece order, not display order)
+    v_piece = V_xsec[piece_data_idx[pname]]  # (nlev, nlon)
     vm = np.nanpercentile(np.abs(v_piece), 99)
     if not np.isfinite(vm) or vm <= 0:
         vm = 1.0
@@ -130,42 +144,57 @@ for ip, (ax, pname) in enumerate(zip(axes, piece_names)):
                        vmin=-vm, vmax=vm, shading="auto")
     plt.colorbar(cf, ax=ax, shrink=0.85, pad=0.02, label="V_induced [m/s]")
 
-    # ── Contours: total PV anomaly in plev×lon space ──
-    # Solid = positive PV anomaly, Dashed = negative PV anomaly
-    pv_vm = np.nanpercentile(np.abs(PV_xsec), 99)
-    if np.isfinite(pv_vm) and pv_vm > 0.01:
-        n_levels = 12
-        pos_levels = np.linspace(pv_vm / n_levels, pv_vm, n_levels // 2)
-        neg_levels = np.linspace(-pv_vm, -pv_vm / n_levels, n_levels // 2)
-        ax.contour(LON2D, PLEV2D, PV_xsec, levels=pos_levels,
+    # ── Contours: THIS piece's source PV anomaly (PVU), INTERIOR levels only ──
+    # Each panel's v' is induced by inverting ONLY this piece's source (PV at its
+    # interior levels + any boundary θ). Contour only the genuine interior PV
+    # levels (850..200); the boundary-θ levels (1000, 100) carry no Ertel PV that
+    # was inverted, so we do NOT draw a (spurious) PV contour there — they are
+    # marked by the gray band + the panel label instead.
+    km = piece_k[pname]
+    km_pv = [k for k in km if k in INTERIOR]
+    has_sfc_theta = (0 in km)             # piece includes K=1 lower-boundary θ
+    has_top_theta = (nlev - 1 in km)      # piece includes K=NL upper-boundary θ
+    if km_pv and np.isfinite(pv_vm) and pv_vm > 0.01:
+        PV_piece = np.full_like(PV_xsec, np.nan)
+        PV_piece[km_pv, :] = PV_xsec[km_pv, :]
+        ax.contour(LON2D, PLEV2D, PV_piece, levels=pos_levels,
                    colors="black", linewidths=0.8, linestyles="-")
-        ax.contour(LON2D, PLEV2D, PV_xsec, levels=neg_levels,
+        ax.contour(LON2D, PLEV2D, PV_piece, levels=neg_levels,
                    colors="black", linewidths=0.8, linestyles="--")
 
-    # ── Piece boundary markers (dotted horizontal lines) ──
-    km = piece_k[pname]
-    kmin = min(km)
-    kmax = max(km)
-    p_top = plevs[kmax]  # top of piece (lower pressure)
-    p_bot = plevs[kmin]  # bottom of piece (higher pressure)
+    # ── Piece band: shade the pressure range this piece spans ──
+    # (axhspan stays visible even when a boundary coincides with the y-limits.)
+    p_top = plevs[max(km)]  # top of piece (lower pressure)
+    p_bot = plevs[min(km)]  # bottom of piece (higher pressure)
+    ax.axhspan(min(p_bot, p_top), max(p_bot, p_top), color="gray", alpha=0.12, zorder=0)
     ax.axhline(y=p_top, color="gray", linewidth=1.5, linestyle=":", alpha=0.7)
     ax.axhline(y=p_bot, color="gray", linewidth=1.5, linestyle=":", alpha=0.7)
 
-    # ── Info text ──
-    ax.text(0.98, 0.02,
-            "PV anom: solid (+) / dashed (−)",
+    # ── Info text: describe this piece's actual source ──
+    _src = []
+    if km_pv:
+        _src.append("interior PV: solid (+) / dashed (−)")
+    if has_sfc_theta:
+        _src.append(f"{plevs[0]:.0f} hPa boundary θ")
+    if has_top_theta:
+        _src.append(f"{plevs[-1]:.0f} hPa top θ")
+    ax.text(0.98, 0.02, "source — " + "; ".join(_src),
             transform=ax.transAxes, ha="right", va="bottom",
             fontsize=7, color="black", style="italic",
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7))
 
-    # ── Formatting: 1000 hPa at bottom (surface), decreasing upward ──
-    ax.set_ylim(1000, 200)  # 1000 at bottom, 200 at top
+    # ── Formatting: log-p axis, 1000 hPa at bottom (surface), decreasing upward ──
+    ax.set_yscale("log")
+    ax.set_ylim(1000, 100)  # 1000 at bottom, 100 (top θ) at top
     ax.set_xlabel("Longitude [°E]")
     ax.set_title(piece_labels[pname], fontsize=12, fontweight="bold")
 
-    # Non-uniform pressure ticks (atmospheric levels)
-    ax.set_yticks([1000, 850, 700, 500, 400, 300, 250, 200])
-    ax.set_yticklabels([1000, 850, 700, 500, 400, 300, 250, 200], fontsize=7)
+    # Pressure ticks at the model levels, plain (non-scientific) labels
+    _yt = [1000, 850, 700, 500, 400, 300, 250, 200, 100]
+    ax.set_yticks(_yt)
+    ax.yaxis.set_major_formatter(ScalarFormatter())
+    ax.set_yticklabels(_yt, fontsize=7)
+    ax.minorticks_off()
 
     ax.set_xlim(lons[0], lons[-1])
     ax.grid(True, alpha=0.3, which="both")
@@ -175,7 +204,7 @@ axes[0].set_ylabel("Pressure [hPa]")
 
 plt.suptitle(
     f"Meridional Wind Induced by Piecewise PV Inversion — Cross-Section at {actual_lat:.1f}°N\n"
-    f"CA Blocking Event 2025-01-08 00Z  |  INLIN=0  |  30yr Clim  |  8 Levels (no interp)",
+    f"CA Blocking Event 2025-01-08 00Z  |  INLIN=1  |  30yr Clim  |  9 Levels (no interp)",
     fontsize=14, fontweight="bold")
 plt.tight_layout(rect=[0, 0, 1, 0.94])
 
@@ -191,8 +220,8 @@ plt.show()
 # ## 4. Summary Statistics
 #
 # %%
-for ip, pname in enumerate(piece_names):
-    vp = V_xsec[ip]
+for pname in piece_names:
+    vp = V_xsec[piece_data_idx[pname]]
     print(f"\n{pname} piece (@ {actual_lat}°N):")
     print(f"  V_induced range: [{np.nanmin(vp):.2f}, {np.nanmax(vp):.2f}] m/s")
     print(f"  V_induced p95: ±{np.nanpercentile(np.abs(vp), 95):.2f} m/s")

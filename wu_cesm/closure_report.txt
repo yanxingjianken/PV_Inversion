@@ -3,32 +3,32 @@ band: 80 lats 85.29→10.84N | lon window: 145 pts 245.0→425.0 | dlat=0.942 dl
 running invert_piecewise (per-level + all) ...
 
 --- (A) SOLVER LINEARITY: Σ(per-level ψ′) vs single all-levels ψ′ ---
-  ψ′  R²@250 = 0.999078   R²@500 = 0.993410
-  u_rot R²@250 = 0.999763
+  ψ′  R²@250 = 0.996942   R²@500 = 0.991741
+  u_rot R²@250 = 0.998692
     lev   NRMS(ψ′)
-   1000     0.1412
-    850     0.1413
-    700     0.1460
-    500     0.0728
-    400     0.0896
-    300     0.0428
-    250     0.0274
-    200     0.0307
-    100     0.0316
+   1000     0.2062
+    850     0.2100
+    700     0.1076
+    500     0.0819
+    400     0.0815
+    300     0.0651
+    250     0.0511
+    200     0.0119
+    100     0.0125
 
 --- (PV) PV CLOSURE: Wu Q_event vs input Ertel PV [PVU] ---
   @500: corr=0.8311  NRMS=0.2902  (Wu mean 0.54, Ertel mean 0.63 PVU)
   @250: corr=0.9578  NRMS=0.1058  (Wu mean 2.62, Ertel mean 2.77 PVU)
 
 --- (B) PI RECOVERY: balanced Σ(piece winds) vs observed u_rot_anom ---
-  @250: u  R²=0.9409  v  R²=0.9198  (‖Σpieces‖=14.2, ‖obs‖=13.8 m/s)
-  @500: u  R²=0.9461  v  R²=0.9456  (‖Σpieces‖=9.3, ‖obs‖=9.6 m/s)
+  @250: u  R²=0.3957  v  R²=0.8213  (‖Σpieces‖=23.1, ‖obs‖=13.8 m/s)
+  @500: u  R²=0.5204  v  R²=0.8840  (‖Σpieces‖=14.8, ‖obs‖=9.6 m/s)
 
 --- (adv) ADVECTION SANITY @250 [PVU/day] ---
-  −u_rot_anom_ppvi·∇q'  : mean +0.029  p1/p99 -10.79/+11.92
+  −u_rot_anom_ppvi·∇q'  : mean +0.025  p1/p99 -18.31/+21.28
   −u_div_anom·∇q'       : mean -0.055  p1/p99 -3.17/+2.07
 
-=== GATE @250: linearity R²=0.99908 (>0.99? True); upper-band(300/250/200) max NRMS=0.0428 (<0.05? True); PI-recovery R²=0.941 (>0.85? True) → PASS ✅ ===
+=== GATE @250: linearity R²=0.99694 (>0.99? True); upper-band(300/250/200) max NRMS=0.0651 (<0.05? False); PI-recovery R²=0.396 (>0.85? False) → FAIL ❌ ===
   (lower levels 1000/850/700 carry below-ground hydrostatic-fill artefacts; 500/400 a little pass-D nonlinearity, inlin=1 — reported, not gated.)
 
 Saved -> /net/flood/data2/users/x_yan/pv_inversion/wu_cesm/closure_check.png

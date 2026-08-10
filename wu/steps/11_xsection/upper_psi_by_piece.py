@@ -2,7 +2,7 @@
 # Step 11 — Plot B: Upper-Level (250 hPa) Streamfunction Induced by Each PV Piece
 #
 # 3-panel map showing the 250-hPa streamfunction perturbation ψ′ induced by
-# each of the three vertical PV pieces (lower / middle / upper).
+# each of the three vertical PV pieces (surface / lower / upper).
 #
 # **Each panel (one per inducing piece):**
 # - **Filled shading**: ψ′ at 250 hPa induced by that piece's PV anomaly (RdBu_r)
@@ -37,7 +37,7 @@ with open(_YAML_CFG_PATH) as _f:
 _pieces = _yaml_cfg["pieces"]
 
 NPIECES = 3
-K250 = 6  # 250 hPa is index 6 of 8 [0=1000,1=850,2=700,3=500,4=400,5=300,6=250,7=200]
+K250 = 6  # 250 hPa is index 6 [0=1000,1=850,2=700,3=500,4=400,5=300,6=250,7=200]
 
 # ── Load ψ (= streamfunction in m²/s) from piecewise_psi.nc ──
 ds_psi = xr.open_dataset(OUT_DIR / "piecewise_psi.nc")
@@ -95,7 +95,7 @@ print(f"PV anomaly @250 hPa range: [{q_anom_250.min()*PV_SCALE:.2f}, {q_anom_250
 #
 # %%
 # Piece names & level indices from YAML (Fortran 1-indexed K → Python 0-indexed k)
-piece_names = list(_pieces.keys())  # ["lower", "middle", "upper"]
+piece_names = list(_pieces.keys())  # ["surface", "lower", "upper"]
 piece_k_idx = {
     pname: [k - 1 for k in _pieces[pname]["levels"]]
     for pname in piece_names
@@ -104,8 +104,8 @@ piece_labels = {
     pname: f"{pname.capitalize()} ({_pieces[pname]['hpa']} hPa)"
     for pname in piece_names
 }
-# Reorder for display: lower → middle → upper (left to right)
-display_order = ["lower", "middle", "upper"]
+# Reorder for display: surface → lower → upper (left to right)
+display_order = list(_pieces.keys())
 
 # Induced ψ′ at 250 hPa (already in m²/s from .nc)
 psi_250 = {

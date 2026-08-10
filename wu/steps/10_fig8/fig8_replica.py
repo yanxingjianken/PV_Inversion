@@ -10,10 +10,10 @@
 # - **Black dashed contours**: negative PV anomaly
 # - **Black arrows**: induced wind vectors at 250 hPa (capped at 40 m/s; ref arrow 20 m/s)
 #
-# **Pieces** (8 levels, no interp, INLIN=0):
-# - Piece 1 (lower):  1000–850 hPa
-# - Piece 2 (middle): 700–400 hPa
-# - Piece 3 (upper):  300–200 hPa
+# **Pieces** (8 levels, no interp, INLIN=1) — surface θ isolated, reference-style:
+# - Piece 1 (surface): 1000 hPa boundary θ only
+# - Piece 2 (lower):   850–500 hPa interior PV
+# - Piece 3 (upper):   400–200 hPa PV + 100 hPa top θ
 #
 # %% [markdown]
 # ## 1. Load & Prepare Data
@@ -108,10 +108,12 @@ with open(_YAML_CFG_PATH) as _f:
     _yaml_cfg = yaml.safe_load(_f)
 _pieces = _yaml_cfg["pieces"]
 
+# Derive panel titles from the YAML pieces (order = on-disk piece index).
+_piece_keys = list(_pieces.keys())  # surface, lower, upper
+_letters = "abcdefgh"
 piece_titles = [
-    f"(a) PV anomalies: {_pieces['lower']['hpa']} hPa",
-    f"(b) PV anomalies: {_pieces['middle']['hpa']} hPa",
-    f"(c) PV anomalies: {_pieces['upper']['hpa']} hPa",
+    f"({_letters[i]}) {k.capitalize()} piece: {_pieces[k]['hpa']} hPa"
+    for i, k in enumerate(_piece_keys)
 ]
 QUIVER_SKIP = 4
 REF_SPEED = 20.0
@@ -122,7 +124,7 @@ q_contour = np.where(np.isnan(q_anom), np.nanmean(q_anom), q_anom)
 fig, axes = plt.subplots(3, 1, figsize=(10, 16),
                          subplot_kw={"projection": proj})
 fig.suptitle("250-hPa PV Advection Induced by Piecewise PV Anomalies\n"
-             "2025-01-08 00Z  |  INLIN=0  |  8 Levels  |  30yr Clim",
+             "2025-01-08 00Z  |  INLIN=1  |  9 Levels  |  30yr Clim",
              fontsize=13, fontweight="bold")
 
 for ip, ax in enumerate(axes):
@@ -181,5 +183,5 @@ print(f"✓ Saved: {pdf_path}  ({pdf_path.stat().st_size/1e6:.1f} MB)")
 plt.close(fig)
 
 print("\n=== Step 10 complete — Fig 8 replica ===")
-print(f"  8 levels, INLIN=0, 30yr clim")
-print(f"  Pieces: lower(1000–850), middle(700–400), upper(300–200)")
+print(f"  9 levels, INLIN=1, 30yr clim")
+print(f"  Pieces: " + ", ".join(f"{k}({_pieces[k]['hpa']})" for k in _piece_keys))

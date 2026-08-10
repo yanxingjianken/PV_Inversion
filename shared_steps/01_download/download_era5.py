@@ -22,7 +22,8 @@ import config
 STEP_DIR = _Path(__file__).resolve().parent
 ERA5_DIR = _Path(config.ERA5_DIR); ERA5_DIR.mkdir(parents=True, exist_ok=True)
 
-LEVELS = ["1000","850","700","500","400","300","250","200"]
+# Derive from config so the download always matches the inversion grid (8 levels, 1000…200).
+LEVELS = [str(int(p)) for p in config.PLEVS]  # 1000,850,700,500,400,300,250,200
 VARS   = ["temperature","u_component_of_wind","v_component_of_wind","geopotential"]
 
 # Only the single event hour is needed (climatology is pre-computed elsewhere).

@@ -73,7 +73,7 @@ ds_event = xr.open_dataset(CLIM_DIR / "event.nc")
 lats = ds_mean.latitude.values
 lons = ds_mean.longitude.values
 
-# --- Load clim PV: drop 100 hPa (clim 9 → Wu 8 levels) ---
+# --- Load clim PV: select the 8 Wu levels (1000…200; 100 hPa dropped) ---
 # ERA5 CDS PV is native SI: K·m²·kg⁻¹·s⁻¹ (~1e-6). Keep in SI.
 ds_pv = xr.open_dataset(CLIM_SRC / f"era5_hourly_clim_1990-2020_{EM}_pv.nc")
 pv_raw = ds_pv["pv"].sel(day=config.EVENT_DAY, hour=0).squeeze().values
@@ -81,12 +81,13 @@ clim_plev_all = ds_pv.pressure_level.values.astype(float)  # [1000,850,700,500,4
 clim_lat  = ds_pv.latitude.values.astype(float)
 clim_lon  = ds_pv.longitude.values.astype(float)
 
-# Drop 100 hPa → 8 levels matching Wu
-keep_8 = clim_plev_all != 100.0
-pv_8 = pv_raw[keep_8]
-clim_plev_8 = clim_plev_all[keep_8]
-assert np.allclose(clim_plev_8, WU_LEVS), f"Clim PV level mismatch: {list(clim_plev_8)} vs {list(WU_LEVS)}"
-PV_mean = pv_8  # ERA5 PV is already SI (K·m²·kg⁻¹·s⁻¹); NO *1e6
+# Select the 8 Wu levels from the clim PV (drops 100 hPa). lev_keep is also
+# full-keep mask, also reused for the index-ordered Helmholtz arrays below.
+lev_keep = np.isin(clim_plev_all, WU_LEVS)
+pv_k = pv_raw[lev_keep]
+clim_plev_k = clim_plev_all[lev_keep]
+assert np.allclose(clim_plev_k, WU_LEVS), f"Clim PV level mismatch: {list(clim_plev_k)} vs {list(WU_LEVS)}"
+PV_mean = pv_k  # ERA5 PV is already SI (K·m²·kg⁻¹·s⁻¹); NO *1e6
 
 lat_mask = (clim_lat <= config.LAT_N) & (clim_lat >= config.LAT_S)
 _lw, _le = config.LON_W % 360, config.LON_E % 360
@@ -119,7 +120,7 @@ def ertel_pv(t3d, u3d, v3d, plev_Pa_arr, lat_arr):
 
 PV_event = ertel_pv(t_ev, u_ev, v_ev, plev_Pa, lats)
 
-k250 = 6  # 250 hPa is index 6 of 8 [0=1000,1=850,2=700,3=500,4=400,5=300,6=250,7=200]
+k250 = 6  # 250 hPa is index 6 [0=1000,1=850,2=700,3=500,4=400,5=300,6=250,7=200]
 # Display in practical units: 1e-6 SI = 1 PVU
 print(f"PV @250hPa: Mean(30yr)=[{PV_mean[k250].min()*1e6:.1f},{PV_mean[k250].max()*1e6:.1f}] PVU  "
       f"Event=[{PV_event[k250].min()*1e6:.1f},{PV_event[k250].max()*1e6:.1f}] PVU")
@@ -203,10 +204,10 @@ ds_uh = xr.open_dataset(CLIM_SRC / f"era5_hourly_clim_1990-2020_{EM}_u_helmholtz
 ds_vh = xr.open_dataset(CLIM_SRC / f"era5_hourly_clim_1990-2020_{EM}_v_helmholtz.nc")
 ur = ds_uh["u_rot_bar"].sel(day=config.EVENT_DAY, hour=0).squeeze().values
 vr = ds_vh["v_rot_bar"].sel(day=config.EVENT_DAY, hour=0).squeeze().values
-# Drop 100 hPa — no interp needed; reorder columns to ascending 0-360 (same fix
-# as the clim-PV load) so they align with the monotonic event/mean grid.
-ur = ur[keep_8][:, lat_mask, :][:, :, lon_mask][:, :, _pv_lon_order]
-vr = vr[keep_8][:, lat_mask, :][:, :, lon_mask][:, :, _pv_lon_order]
+# Keep the 8 Wu levels (index-ordered, 100 hPa dropped); reorder columns to
+# ascending 0-360 (same fix as the clim-PV load) to align with event/mean grid.
+ur = ur[lev_keep][:, lat_mask, :][:, :, lon_mask][:, :, _pv_lon_order]
+vr = vr[lev_keep][:, lat_mask, :][:, :, lon_mask][:, :, _pv_lon_order]
 assert ur.shape[0] == NW, f"Helmholtz shape mismatch: {ur.shape[0]} vs NW={NW}"
 
 dr_lat = np.deg2rad(np.mean(np.abs(np.diff(lats))))
@@ -251,7 +252,7 @@ print(f"Helmholtz ψ vs Wu ψ @500hPa: RMS={rms:.2e} m²/s corr={cor:.4f}")
 # %% [markdown]
 # ## 6. Save Outputs + PV Advection (ALL in SI)
 # %%
-PLEVS = config.PLEVS  # 8 levels from config
+PLEVS = config.PLEVS  # 8 levels from config (1000…200)
 
 # --- Save piecewise_psi.nc: ψ, geopotential, induced winds ---
 ds_psi_out = xr.Dataset({
