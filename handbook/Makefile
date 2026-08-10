@@ -11,13 +11,13 @@ figs:
 	cp -f ../wu/steps/05_wu_pass_ab/wu_mean_pv_3levels.png figs/wu/ 2>/dev/null || true
 	cp -f ../wu/steps/05_wu_pass_ab/wu_pv_anomaly_3levels.png figs/wu/ 2>/dev/null || true
 	cp -f ../wu/steps/05_wu_pass_ab/wu_mean_psi_500hpa.png figs/wu/ 2>/dev/null || true
-	cp -f ../wu/steps/06_wu_pass_c/pass_c_psi_refinement.png figs/wu/ 2>/dev/null || true
 	cp -f ../wu/steps/06_wu_pass_c/pass_c_psi_all_levels.png figs/wu/ 2>/dev/null || true
 	cp -f ../wu/steps/07_wu_pass_d/pass_d_psi_3pieces_250hpa.png figs/wu/ 2>/dev/null || true
-	cp -f ../wu/steps/07_wu_pass_d/pass_d_piece3_noise.png figs/wu/ 2>/dev/null || true
-	cp -f ../wu/steps/08_parse_outputs/wu_vs_era5_pv_250hpa.png figs/wu/ 2>/dev/null || true
-	cp -f ../wu/steps/09_pv_advection/pv_advection_all_pieces.png figs/wu/ 2>/dev/null || true
+	cp -f ../wu/steps/08_parse_outputs/pv_comparison_250hPa.png figs/wu/ 2>/dev/null || true
 	cp -f ../wu/steps/10_fig8/fig8_replica.png figs/wu/ 2>/dev/null || true
+	cp -f ../wu/steps/11_xsection/xsection_vinduced_3panel.png figs/wu/ 2>/dev/null || true
+	cp -f ../wu/steps/11_xsection/xsection_pv_psi_4panel.png figs/wu/ 2>/dev/null || true
+	cp -f ../wu/steps/11_xsection/closure_check.png figs/wu/ 2>/dev/null || true
 	@echo "Wu step figures copied into figs/wu/"
 
 pdf: $(MAIN).pdf

@@ -4,69 +4,61 @@
 \section{Summary}
 
 This handbook documents the \textbf{Wu Fortran piecewise PV inversion
-pipeline} \citep{Davis1991} applied to the 2025-01-08 California
-blocking event.  The pipeline is a single, unified method:
+pipeline} \cite{Davis1992} applied to the 2025-01-08 California
+blocking event, on a nine-level ERA5 grid with the perturbation split
+into a \textbf{surface}, \textbf{lower} and \textbf{upper} piece:
 
 \begin{enumerate}\setlength\itemsep{2pt}
-  \item \textbf{Download ERA5} --- single-hour event state + 30-day
-        symmetric window for a running-mean climatology
-        (steps~01--03).
-  \item \textbf{Pass A/B} --- \texttt{pvpialln} computes Ertel-like PV
-        and the balanced streamfunction from relative-vorticity
-        inversion, for both the mean state and the event state
-        (step~05).
-  \item \textbf{Pass C (BALNC)} --- \texttt{qinvert21} refines the
-        event state to full nonlinear balance
-        (\Cref{chap:wu_solver}, step~06).
-  \item \textbf{Pass D (BALP)} --- \texttt{qinvertp21} partitions the
-        PV perturbation $q' = q_{\text{event}} - q_{\text{mean}}$ into
-        three vertical pieces and inverts each to its perturbation
-        streamfunction $\psi'$ (step~07).
-  \item \textbf{Diagnostics} --- piecewise induced winds,
-        PV advection, Fig.~8 cross-comparison, and
-        latitude--pressure cross-sections of $V_{\text{induced}}$
-        (steps~08--11).
+  \item \textbf{Download / climatology / grid} (\texttt{shared\_steps/01--04}) ---
+        ERA5 event hour, 30-year mean, and the Fortran \texttt{.grid} inputs.
+  \item \textbf{Pass A/B} (\texttt{pvpialln}) --- boundary $\theta$,
+        interior Ertel PV (850--200\,hPa), balanced $\psi$, for the mean
+        and event states (step~05).
+  \item \textbf{Pass C} (\texttt{qinvert21}/BALNC) --- total balanced
+        reference (step~06).
+  \item \textbf{Pass D} (\texttt{qinvertp21}/BALP) --- the three-piece
+        perturbation inversion, \texttt{INLIN}=1 so the pieces sum to the
+        total (step~07).
+  \item \textbf{Diagnostics} --- Wu-vs-ERA5 PV, induced winds, PV
+        advection, cross-sections, 3-D structure, closure (steps~08--11).
 \end{enumerate}
 
-The Fortran core (\texttt{pvpialln}, \texttt{qinvert21},
-\texttt{qinvertp21}) is the canonical benchmark; the pipeline's
-Python layer (\texttt{wu/steps/}) handles data preparation,
-orchestration, post-processing, and visualisation.
+\section{Key Findings}
 
-\section{Key Finding: Wu PV to SI Conversion is Exactly $10^{-8}$}
+\begin{enumerate}\setlength\itemsep{3pt}
 
-A central result of this work (\Cref{chap:wu_coeffs}) is that the Wu
-Fortran PV scalar $Q_{\text{Wu}}$ converts to true SI Ertel PV by a
-\emph{single universal constant}:
-\begin{equation}
-\boxed{\;\mathrm{PV}_{\text{SI}}\;[\text{K\,m}^{2}\,\text{kg}^{-1}\,\text{s}^{-1}]
-       = Q_{\text{Wu}} \times 10^{-8}\;}
-\end{equation}
-This holds at \emph{every pressure level} because the Exner-pressure
-scaling $\Pi^{-2.5}$ in the Wu PV definition is designed such that the
-conversion factor's pressure dependence cancels exactly when
-$\kappa = 2/7$.  The earlier practice of dividing by a
-spatially-varying median ratio was incorrect --- the residual
-$\sim$3.5$\times$ difference between Wu-Q$\times10^{-8}$ and ERA5
-native PV reflects the physical discretisation bias of the coarse
-$1.5^{\circ}$ finite-difference grid, not a missing conversion factor.
+  \item \textbf{Surface heating is a boundary condition, not interior
+        PV.}  Interior Ertel PV exists only at $K{=}2..N_L{-}1$
+        (850--200\,hPa); the surface (1000) and top (100) levels carry
+        the boundary $\theta$.  By Bretherton's equivalence the warm
+        surface $\theta'$ is a positive PV \emph{sheet} at the boundary,
+        applied as an inhomogeneous Neumann condition.  We invert it as
+        its own \textbf{surface piece} (\texttt{QLV}=$\{1\}$), isolating
+        the surface thermal forcing.
 
-\section{Status}
+  \item \textbf{The surface-piece $\psi'$ is predominantly cyclonic for
+        this event} ($\sim$84\% of points have $\psi'<0$ at 1000\,hPa),
+        because the domain-mean surface $\theta'$ is net warm
+        ($\approx+1$\,K).  This is case-dependent, not a law: a net-cold
+        surface anomaly would give an anticyclonic surface piece.
 
-\begin{itemize}\setlength\itemsep{2pt}
-  \item \textbf{Pass A/B} --- compute and converge reliably.
-  \item \textbf{Pass C (BALNC)} --- converges for this case; the
-        total-balance refinement confirms the \texttt{pvpialln} state
-        is already balanced to solver tolerance.
-  \item \textbf{Pass D (BALP)} --- three-piece perturbation inversion
-        converges; Piece~3 (upper troposphere, 600--250\,hPa) carries
-        the dominant blocking signal.
-  \item \textbf{All output NetCDFs} are in SI units
-        (\Cref{tab:si_units}); the pipeline is self-consistent.
-  \item \textbf{The Fig.~8 diagnostic} reproduces the expected
-        $\Sigma$/Direct RMS ratio ($\sim$1.12 for the California
-        window).
-\end{itemize}
+  \item \textbf{Wu $Q\to$ SI is the exact constant $10^{-8}$} when
+        $\kappa=2/7$ (\Cref{chap:wu_coeffs}).  After the raw-$T$ input
+        fix, $Q_{\text{Wu}}\times10^{-8}$ matches ERA5 native Ertel PV
+        with median ratio $1.00$, $\corr=0.995$.  The former
+        ``$\sim$3.5$\times$ residual'' and any empirical scaling are
+        retired.
+
+  \item \textbf{The 9-level (top-100) grid closes the piecewise sum
+        better} ($R^2\!\approx\!0.44$ at 250\,hPa) than a uniform-top
+        8-level (top-200) grid ($R^2\!\approx\!-0.2$).  The non-uniform
+        top is accepted because all analysis of interest is at
+        $\le 200$\,hPa.
+
+  \item \textbf{Pass D converges (\texttt{INLIN}=1)}; the earlier
+        ``\texttt{INLIN}=0 mandatory'' claim is obsolete.  Pass C's
+        ``started diverging'' is a benign post-convergence heuristic.
+\end{enumerate}
 
 \begin{table}[H]
 \centering\small
@@ -86,27 +78,18 @@ Pressure                & $p$             & hPa \\
 \end{tabular}
 \end{table}
 
-\section{Non-Dimensional Scales (Reference)}
+\section{Limitations and Future Work}
 
-The Wu Fortran BALNC/BALP solvers use the following non-dimensional
-scales ($N_L = 8$ levels in our configuration):
-
-\begin{center}\small
-\begin{tabular}{lll}
-\toprule
-Scale & Definition & Value ($N_L{=}8$) \\
-\midrule
-DPI     & $500/N_L$           & $62.5$ \\
-LL      & $(2{\times}10^{7}/\pi)\cdot\Delta\lambda\cdot\pi/180$ & $1.667{\times}10^{5}$\,m \\
-FF      & reference Coriolis  & $10^{-4}$\,s$^{-1}$ \\
-THO     & $\mathrm{FF}^{2}\,\mathrm{LL}^{2}/\mathrm{DPI}$ & $4.445$\,K \\
-HND     & $\mathrm{DPI}\cdot\mathrm{THO}/g$ & $28.32$\,m \\
-QCONST  & $10^{6}\kappa g c_p\,\mathrm{FF}\,\mathrm{THO}/(p_0\,\mathrm{DPI})$ & $0.313$\,PVU-equiv \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-These are documented in \texttt{config.py} for reference; they are
-\emph{not} used by the Python post-processing layer, which works
-entirely in SI.
-
+\begin{itemize}\setlength\itemsep{2pt}
+  \item \textbf{Flat lower boundary.}  The solver treats 1000\,hPa as a
+        rigid lid everywhere and ignores topography; over the western-US
+        land surface the true lower boundary is well above 1000\,hPa.  A
+        terrain-following / surface-pressure lower boundary
+        ($p=\mathrm{hyam}\,p_0+\mathrm{hybm}\,p_s$) with the actual
+        near-surface $\theta$ would be the principal physical upgrade.
+        The boundary-$\theta$ Neumann condition itself is standard and
+        correct; the GFDL/CSU PPVI tool uses the identical scheme (plus a
+        regional ``surgery'' mask of the boundary $\theta$).
+  \item \textbf{Coarse vertical/horizontal resolution} ($1.5^\circ$,
+        9 levels) limits the static-stability estimate and the closure.
+\end{itemize}

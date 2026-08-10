@@ -1,129 +1,70 @@
 \chapter{Public-API Reference}
 \label{app:api}
 
-\section{Part I --- Wu Fortran reference (\texttt{wu/})}
+\section{Configuration}
 
-\subsection{\texttt{config.py} (shared)}
+\subsection{\texttt{config.py} and \texttt{wu/wu\_config.yaml}}
 \begin{itemize}\setlength\itemsep{0pt}
-\item Grid: \texttt{NX=87}, \texttt{NY=51}, \texttt{NW=10};
-      \texttt{PLEVS} (10 levels, $1000$--$200$\,hPa).
-\item Solver params: \texttt{OMEGS}, \texttt{OMEGH}, \texttt{PART},
-      \texttt{INLIN}, \texttt{MAXT}, \texttt{THRSH}, piece definitions.
-\item Paths: \texttt{WU\_IN\_DIR}, \texttt{WU\_OUT\_DIR},
-      \texttt{FORT\_DIR}, \texttt{FIG\_DIR}.
+\item Grid: \texttt{NX=134}, \texttt{NY=51}, \texttt{NW=9};
+      \texttt{PLEVS} $=[1000,850,700,500,400,300,250,200,100]$\,hPa.
+      Domain $85.5^\circ$N$\to$$10.5^\circ$N, $120^\circ$E$\to$$319.5^\circ$E.
+\item \texttt{PIECES}: \texttt{surface} $\{1\}$, \texttt{lower} $\{2,3\}$,
+      \texttt{upper} $\{4,5,6,7,8,9\}$ (mirrored authoritatively in
+      \texttt{wu\_config.yaml} \texttt{pieces}).
+\item Solver params live in \texttt{wu\_config.yaml} (\texttt{pass\_ab},
+      \texttt{pass\_c}, \texttt{pass\_d}); \texttt{config.py} keeps grid,
+      physical constants, the exact $10^{-8}$ Wu$\to$SI note, and paths.
+\item Paths: \texttt{ERA5\_DIR}, \texttt{CLIM\_DIR}, \texttt{WU\_IN\_DIR},
+      \texttt{WU\_OUT\_DIR}, \texttt{FIG\_DIR}.
 \end{itemize}
 
-\subsection{Fortran programs (\texttt{wu/fortran/})}
+\section{Fortran programs (\texttt{wu/fortran/})}
 \begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{pvpialln\_94UV.f} --- Pass A/B: Ertel PV + balanced
-      $\psi,\Phi$ (\Cref{sec:wu_passes}).
+\item \texttt{pvpialln\_94UV.f} --- Pass A/B: boundary $\theta$
+      (\texttt{THB,THT}), interior Ertel PV, balanced $\psi,\Phi$
+      (\Cref{sec:wu_passes}).  \texttt{PARAMETER (NW=9)}.
 \item \texttt{qinvert21\_94.f} (BALNC) --- Pass C: total balanced
-      inversion (\cref{eq:wu_psi,eq:wu_H}).
+      inversion.  \texttt{PARAMETER (NL=9)} in main and \texttt{BALNC}.
 \item \texttt{qinvertp21\_94.f} (BALP) --- Pass D: 3-piece perturbation
-      inversion.
+      inversion; \texttt{QLV} selects boundary $\theta$ (1 / \texttt{NL})
+      and interior PV ($2..N_L{-}1$).  \texttt{PARAMETER (NL=9)} in main
+      and \texttt{BALP}; hardcodes \texttt{MAX=8000, MAXT=2000,
+      QMIN=1e-5, DPI=500/NL}.
 \end{itemize}
 
-\subsection{Step drivers (\texttt{wu/steps/})}
+\section{Shared front end (\texttt{shared\_steps/})}
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{01\_download/download\_era5.py} --- event hour at the 9
+      levels (derived from \texttt{config.PLEVS}).
+\item \texttt{03\_climatology/clim\_30yr\_mean.py} --- 30-yr mean +
+      event subset to the 9 Wu levels (\texttt{mean\_clim.nc},
+      \texttt{event.nc}).
+\item \texttt{04\_write\_grid/write\_grid\_files.py} --- writes
+      \texttt{mean.grid}, \texttt{event.grid} ($4N_W$ field-blocks).
+\end{itemize}
+
+\section{Wu step drivers (\texttt{wu/steps/})}
 \begin{itemize}\setlength\itemsep{0pt}
 \item \texttt{05\_wu\_pass\_ab/} --- compile + Pass A/B; writes
       \texttt{meanq}, \texttt{meanh}, \texttt{event\_\{q,h\}.out}.
-\item \texttt{06\_wu\_pass\_c/} --- Pass C; writes
-      \texttt{event\_bal.out}.
-\item \texttt{07\_wu\_pass\_d/} --- Pass D; writes
-      \texttt{event\_pert.out}.
-\item \texttt{08\_parse\_outputs/} --- ERA5 Ertel PV
-      (\cref{eq:wu_ertel_pv}) + Wu/ERA5 comparison.
-\item \texttt{09\_pv\_advection/} --- PV advection by induced winds
-      (\cref{eq:wu_pvadv}); writes \texttt{pv\_advection.nc}.
-\item \texttt{10\_fig8/} --- Davis 2022 Fig.~8 replica
-      (\texttt{fig8\_replica.\{png,pdf\}}).
+\item \texttt{06\_wu\_pass\_c/} --- Pass C; writes \texttt{event\_bal.out}.
+\item \texttt{07\_wu\_pass\_d/} --- Pass D; writes \texttt{event\_pert.out}
+      (3 pieces, \texttt{QLV} from \texttt{wu\_config.yaml}).
+\item \texttt{08\_parse\_outputs/parse\_and\_pv.py} --- Wu $Q\to$SI
+      ($\times10^{-8}$); writes \texttt{piecewise\_psi.nc},
+      \texttt{pv\_advection.nc} (all SI).
+\item \texttt{10\_fig8/fig8\_replica.py} --- Davis-style PV-advection
+      diagnostic (surface/lower/upper).
+\item \texttt{11\_xsection/} --- \texttt{xsection\_vinduced.py} (zonal
+      cross-section), \texttt{xsection\_3d\_perpendicular.py} (3-D
+      vertical structure, Fig.-16 style), \texttt{upper\_psi\_by\_piece.py},
+      \texttt{closure\_check.py}, \texttt{closure\_diagnostic.py}.
 \end{itemize}
 
-\section{Part II --- Wu Python finite-difference port (\texttt{wu\_python/})}
-
-\subsection{\texttt{wu\_python/core/grid.py}}
+\section{Key output: \texttt{piecewise\_psi.nc}}
 \begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{FC} --- Coriolis $f$ (NY,), \texttt{A} --- 5-pt Laplacian coeffs (NY,5)
-\item \texttt{AP} --- $\cos\phi$ (NY,), \texttt{DP/DL} --- grid spacings [m]
-\item \texttt{LON2D, LAT2D} --- 2-D meshgrid for plotting
+\item Dims \texttt{(piece, plev, lat, lon)} $=(3, 9, 51, 134)$; the
+      \texttt{piece} axis is ordered \texttt{surface, lower, upper}.
+\item Variables \texttt{psi}, \texttt{geopotential}, \texttt{U\_induced},
+      \texttt{V\_induced}, all SI.
 \end{itemize}
-
-\subsection{\texttt{wu\_python/core/nondim.py}}
-\begin{itemize}\setlength\itemsep{0pt}
-\item Non-dimensional constants: \texttt{G, CP, P0, KAP, DPI, FF, THO, LL}
-\item \texttt{PI\_WU} --- Wu-scaled Exner function $\Pi_\text{Wu}=C_p(p/p_0)^\kappa/\text{DPI}$
-\item \texttt{BB, BH, BL} --- vertical tridiagonal coefficients (built from PI\_WU)
-\end{itemize}
-
-\subsection{\texttt{wu\_python/core/fd\_ops.py}}
-\begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{laplacian\_5pt(psi)} --- 5-point FD Laplacian (\ref{eq:laplacian_5pt})
-\item \texttt{relative\_vorticity(U, V)} --- $\zeta = \partial_x v - \partial_y u$
-\end{itemize}
-
-\subsection{\texttt{wu\_python/core/sor\_solver.py}}
-\begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{sor\_poisson\_2d(rhs, bc, omega, max\_iter, tol)} ---
-      Red-black SOR for $\nabla^2\psi=\zeta$ (\ref{eq:sor_update})
-\item Numba-accelerated with \texttt{parallel=True}, thread-safe per-row error reduction
-\end{itemize}
-
-\subsection{\texttt{wu\_python/core/pv\_calc.py}}
-\begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{compute\_ertel\_pv(U, V, TH, H, FC)} --- Ertel PV on $\sigma$-levels (\ref{eq:ertel_sigma})
-\item \texttt{invert\_vorticity\_balanced(VOR, H, U, V)} --- $\nabla^2\psi=\zeta$ with wind-integrated BC (\ref{eq:psi_boundary})
-\item \texttt{\_boundary\_psi\_from\_winds(H, U, V)} --- Davis eq.~2.40 boundary integration
-\end{itemize}
-
-\subsection{\texttt{wu\_python/core/balance.py} (BALNC)}
-\begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{balnc\_total(Q, H\_init, PSI\_init, THA\_K, ...)} ---
-      Coupled $\psi$--$H$ SOR total-balance inversion (Pass~C)
-\item \texttt{\_nondim(H, PSI, Q)} --- non-dimensionalization:
-      $H_\text{nd}=H/\text{HND}$, $\psi_\text{nd}=\psi/(10^5\cdot\text{HND})$,
-      $q_\text{nd}=\text{PIF}_k\cdot q/(10^2\cdot\text{QCONST})$
-\item \texttt{\_h\_solve\_column\_parallel} (in \texttt{balance\_parallel.py}) ---
-      Implicit vertical tridiagonal Thomas solver per column, numba \texttt{prange} over $j$
-\end{itemize}
-
-\subsection{\texttt{wu\_python/core/piecewise.py} (BALP)}
-\begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{balp\_pieces(Q\_event, Q\_mean, PSI\_mean, H\_mean, ...)} ---
-      Piecewise perturbation inversion (Pass~D)
-\item Exact 1:1 port of \texttt{qinvertp21\_94.f} subroutine BALP
-\item \texttt{\_compute\_mean\_coeffs(HB\_nd, SBR\_nd)} --- pre-compute
-      SLL, SPP, AVO, STB, ASI, BSI, APHI from non-dimensional mean state
-\item \texttt{\_balp\_solve(SP, HP, QP, TP, coeffs, ...)} --- core BALP
-      solver: $\psi'$ SOR (numba 2-D per level) + $H'$ SOR (3-D pointwise)
-\end{itemize}
-
-\subsection{\texttt{wu\_python/config.py}}
-\begin{itemize}\setlength\itemsep{0pt}
-\item Solver params: \texttt{OMEGS, OMEGH, PART, THRSH, MAXT, MAX\_ITER}
-\item Parallelism: \texttt{N\_WORKERS=32} (ProcessPoolExecutor),
-      \texttt{NUM\_CORES=64} (numba threads)
-\item Piece definitions: \texttt{PIECES} (lower/middle/upper)
-\end{itemize}
-
-\subsection{Step drivers (\texttt{wu\_python/steps/})}
-\begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{05\_pass\_ab/run\_pass\_ab.py} --- Pass A/B: Ertel PV + $\psi$
-\item \texttt{06\_pass\_c/run\_pass\_c.py} --- Pass C: total balanced inversion
-\item \texttt{07\_pass\_d/run\_pass\_d.py} --- Pass D: 3-piece perturbation (ProcessPoolExecutor)
-\item \texttt{08\_parse\_outputs/parse\_and\_pv.py} --- ERA5 vs Wu PV comparison
-\item \texttt{09\_pv\_advection/pv\_advection.py} --- PV advection by induced winds
-\item \texttt{10\_fig8/fig8\_replica.py} --- Davis 2022 Fig.~8 replica
-\end{itemize}
-
-\section{Shared utilities (\texttt{pvtend.sh\_ops})}
-
-All operate level-by-level on a NH grid via internal parity-mirroring.
-Retained for reference; the Wu Python track uses finite differences instead.
-\begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{invert\_helmholtz\_sh}$^\dagger$,
-      \texttt{filter\_low\_modes\_sh}$^\dagger$ --- added for the earlier
-      SH BALNC port; purely additive, backward-compatible.
-\end{itemize}
-\noindent$^\dagger$ new functions; no existing \texttt{sh\_ops} routine
-was modified.
-

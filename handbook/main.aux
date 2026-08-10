@@ -16,71 +16,59 @@
 \gdef\HyperFirstAtBeginDocument#1{#1}
 \providecommand\HyField@AuxAddToFields[1]{}
 \providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{Davis1992}
 \@writefile{toc}{\contentsline {chapter}{\numberline {1}Introduction and Overview}{5}{chapter.1}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
 \newlabel{chap:intro}{{1}{5}{Introduction and Overview}{chapter.1}{}}
 \newlabel{chap:intro@cref}{{[chapter][1][]1}{[1][5][]5}}
 \@writefile{toc}{\contentsline {section}{\numberline {1.1}Purpose of this Handbook}{5}{section.1.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {1.2}Notation Cheat-Sheet}{6}{section.1.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {1.3}Quick Tour of the Code}{6}{section.1.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Part\nobreakspace  {}I --- the Wu Fortran reference (\texttt  {pv\_inversion/wu/}).}{6}{section*.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Part\nobreakspace  {}II --- the Python SH port (\texttt  {pv\_inversion/sh/}).}{6}{section*.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {part}{I\hspace  {1em}The Wu Fortran Pipeline}{7}{part.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {chapter}{\numberline {2}Mathematical Foundations}{8}{chapter.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.2}The Case: 2025-01-08 California Block}{6}{section.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.3}Notation Cheat-Sheet}{6}{section.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.4}Quick Tour of the Code}{6}{section.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {2}Mathematical Foundations}{7}{chapter.2}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:math}{{2}{8}{Mathematical Foundations}{chapter.2}{}}
-\newlabel{chap:math@cref}{{[chapter][2][]2}{[1][8][]8}}
-\@writefile{toc}{\contentsline {section}{\numberline {2.1}Coordinates and Constants}{8}{section.2.1}\protected@file@percent }
-\newlabel{eq:exner}{{2.1}{8}{Coordinates and Constants}{equation.2.1.1}{}}
-\newlabel{eq:exner@cref}{{[equation][1][2]2.1}{[1][8][]8}}
-\@writefile{toc}{\contentsline {section}{\numberline {2.2}Thermodynamic Relations}{8}{section.2.2}\protected@file@percent }
-\newlabel{eq:hydrostatic}{{2.4}{8}{Thermodynamic Relations}{equation.2.2.4}{}}
-\newlabel{eq:hydrostatic@cref}{{[equation][4][2]2.4}{[1][8][]8}}
-\@writefile{toc}{\contentsline {section}{\numberline {2.3}Non-uniform Vertical Finite Differences}{9}{section.2.3}\protected@file@percent }
-\newlabel{sec:fd}{{2.3}{9}{Non-uniform Vertical Finite Differences}{section.2.3}{}}
-\newlabel{sec:fd@cref}{{[section][3][2]2.3}{[1][8][]9}}
-\newlabel{eq:fd1}{{2.6}{9}{Non-uniform Vertical Finite Differences}{equation.2.3.6}{}}
-\newlabel{eq:fd1@cref}{{[equation][6][2]2.6}{[1][9][]9}}
-\newlabel{eq:fd2}{{2.7}{9}{Non-uniform Vertical Finite Differences}{equation.2.3.7}{}}
-\newlabel{eq:fd2@cref}{{[equation][7][2]2.7}{[1][9][]9}}
-\@writefile{toc}{\contentsline {section}{\numberline {2.4}Ertel Potential Vorticity}{9}{section.2.4}\protected@file@percent }
-\newlabel{eq:Q}{{2.10}{9}{Ertel Potential Vorticity}{equation.2.4.10}{}}
-\newlabel{eq:Q@cref}{{[equation][10][2]2.10}{[1][9][]9}}
-\@writefile{toc}{\contentsline {section}{\numberline {2.5}Linearization about a Mean State}{9}{section.2.5}\protected@file@percent }
-\newlabel{sec:linearization}{{2.5}{9}{Linearization about a Mean State}{section.2.5}{}}
-\newlabel{sec:linearization@cref}{{[section][5][2]2.5}{[1][9][]9}}
-\newlabel{eq:dq_lin}{{2.11}{9}{Linearization about a Mean State}{equation.2.5.11}{}}
-\newlabel{eq:dq_lin@cref}{{[equation][11][2]2.11}{[1][9][]9}}
-\@writefile{toc}{\contentsline {section}{\numberline {2.6}Closure: Coupling $\delta \Phi $ to $\delta \psi $}{10}{section.2.6}\protected@file@percent }
-\newlabel{sec:closure}{{2.6}{10}{Closure: Coupling $\dPhi $ to $\dpsi $}{section.2.6}{}}
-\newlabel{sec:closure@cref}{{[section][6][2]2.6}{[1][10][]10}}
-\@writefile{toc}{\contentsline {paragraph}{(a) Nonlinear Charney balance}{10}{section*.6}\protected@file@percent }
-\newlabel{eq:charney}{{2.13}{10}{(a) Nonlinear Charney balance}{equation.2.6.13}{}}
-\newlabel{eq:charney@cref}{{[equation][13][2]2.13}{[1][10][]10}}
-\@writefile{toc}{\contentsline {paragraph}{(b) Linear $f_0$-plane balance}{10}{section*.7}\protected@file@percent }
-\newlabel{eq:f0_balance}{{2.14}{10}{(b) Linear $f_0$-plane balance}{equation.2.6.14}{}}
-\newlabel{eq:f0_balance@cref}{{[equation][14][2]2.14}{[1][10][]10}}
-\newlabel{eq:F_op}{{2.15}{10}{(b) Linear $f_0$-plane balance}{equation.2.6.15}{}}
-\newlabel{eq:F_op@cref}{{[equation][15][2]2.15}{[1][10][]10}}
-\@writefile{toc}{\contentsline {chapter}{\numberline {3}The Wu Fortran Reference Solver}{11}{chapter.3}\protected@file@percent }
+\newlabel{chap:math}{{2}{7}{Mathematical Foundations}{chapter.2}{}}
+\newlabel{chap:math@cref}{{[chapter][2][]2}{[1][7][]7}}
+\@writefile{toc}{\contentsline {section}{\numberline {2.1}Coordinates and Constants}{7}{section.2.1}\protected@file@percent }
+\newlabel{eq:exner}{{2.1}{7}{Coordinates and Constants}{equation.2.1.1}{}}
+\newlabel{eq:exner@cref}{{[equation][1][2]2.1}{[1][7][]7}}
+\@writefile{toc}{\contentsline {section}{\numberline {2.2}Thermodynamic Relations}{7}{section.2.2}\protected@file@percent }
+\newlabel{eq:hydrostatic}{{2.5}{7}{Thermodynamic Relations}{equation.2.2.5}{}}
+\newlabel{eq:hydrostatic@cref}{{[equation][5][2]2.5}{[1][7][]7}}
+\citation{HoskinsMcIntyreRobertson1985}
+\@writefile{toc}{\contentsline {section}{\numberline {2.3}Ertel Potential Vorticity}{8}{section.2.3}\protected@file@percent }
+\newlabel{eq:Q}{{2.6}{8}{Ertel Potential Vorticity}{equation.2.3.6}{}}
+\newlabel{eq:Q@cref}{{[equation][6][2]2.6}{[1][8][]8}}
+\@writefile{toc}{\contentsline {section}{\numberline {2.4}Boundary Potential Temperature as a PV Sheet}{8}{section.2.4}\protected@file@percent }
+\newlabel{sec:boundary_theta}{{2.4}{8}{Boundary Potential Temperature as a PV Sheet}{section.2.4}{}}
+\newlabel{sec:boundary_theta@cref}{{[section][4][2]2.4}{[1][8][]8}}
+\@writefile{toc}{\contentsline {section}{\numberline {2.5}Linearization and Balance Closure}{9}{section.2.5}\protected@file@percent }
+\newlabel{sec:closure}{{2.5}{9}{Linearization and Balance Closure}{section.2.5}{}}
+\newlabel{sec:closure@cref}{{[section][5][2]2.5}{[1][8][]9}}
+\newlabel{eq:additivity}{{2.8}{9}{Linearization and Balance Closure}{equation.2.5.8}{}}
+\newlabel{eq:additivity@cref}{{[equation][8][2]2.8}{[1][9][]9}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {3}The Wu Fortran Solver}{10}{chapter.3}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:wu_solver}{{3}{11}{The Wu Fortran Reference Solver}{chapter.3}{}}
-\newlabel{chap:wu_solver@cref}{{[chapter][3][]3}{[1][11][]11}}
-\@writefile{toc}{\contentsline {section}{\numberline {3.1}Grid and Vertical Levels}{11}{section.3.1}\protected@file@percent }
-\newlabel{sec:wu_grid}{{3.1}{11}{Grid and Vertical Levels}{section.3.1}{}}
-\newlabel{sec:wu_grid@cref}{{[section][1][3]3.1}{[1][11][]11}}
-\@writefile{toc}{\contentsline {section}{\numberline {3.2}The Three Programs and Four Passes}{11}{section.3.2}\protected@file@percent }
-\newlabel{sec:wu_passes}{{3.2}{11}{The Three Programs and Four Passes}{section.3.2}{}}
-\newlabel{sec:wu_passes@cref}{{[section][2][3]3.2}{[1][11][]11}}
-\@writefile{toc}{\contentsline {paragraph}{Pass A/B --- \texttt  {pvpialln}.}{12}{section*.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Pass C --- \texttt  {qinvert21} (BALNC).}{12}{section*.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Pass D --- \texttt  {qinvertp21} (BALP).}{12}{section*.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {3.3}Solver Parameters}{12}{section.3.3}\protected@file@percent }
-\newlabel{sec:wu_params}{{3.3}{12}{Solver Parameters}{section.3.3}{}}
-\newlabel{sec:wu_params@cref}{{[section][3][3]3.3}{[1][12][]12}}
+\newlabel{chap:wu_solver}{{3}{10}{The Wu Fortran Solver}{chapter.3}{}}
+\newlabel{chap:wu_solver@cref}{{[chapter][3][]3}{[1][10][]10}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.1}Grid and Vertical Levels}{10}{section.3.1}\protected@file@percent }
+\newlabel{sec:wu_grid}{{3.1}{10}{Grid and Vertical Levels}{section.3.1}{}}
+\newlabel{sec:wu_grid@cref}{{[section][1][3]3.1}{[1][10][]10}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.2}The Three Programs and Four Passes}{10}{section.3.2}\protected@file@percent }
+\newlabel{sec:wu_passes}{{3.2}{10}{The Three Programs and Four Passes}{section.3.2}{}}
+\newlabel{sec:wu_passes@cref}{{[section][2][3]3.2}{[1][10][]10}}
+\@writefile{toc}{\contentsline {paragraph}{Pass A/B --- \texttt  {pvpialln}.}{11}{section*.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Pass C --- \texttt  {qinvert21} (BALNC).}{11}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Pass D --- \texttt  {qinvertp21} (BALP).}{11}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.3}Solver Parameters}{11}{section.3.3}\protected@file@percent }
+\newlabel{sec:wu_params}{{3.3}{11}{Solver Parameters}{section.3.3}{}}
+\newlabel{sec:wu_params@cref}{{[section][3][3]3.3}{[1][11][]11}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.4}Convergence and Closure (current behaviour)}{12}{section.3.4}\protected@file@percent }
+\newlabel{sec:wu_converge}{{3.4}{12}{Convergence and Closure (current behaviour)}{section.3.4}{}}
+\newlabel{sec:wu_converge@cref}{{[section][4][3]3.4}{[1][11][]12}}
 \@writefile{toc}{\contentsline {chapter}{\numberline {4}Wu PV to SI Ertel PV: Exact Conversion}{13}{chapter.4}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
@@ -106,113 +94,96 @@
 \newlabel{eq:c_p@cref}{{[equation][7][4]4.7}{[1][14][]14}}
 \newlabel{eq:constant}{{4.8}{14}{The Coefficient $c(p)$ is Constant}{equation.4.3.8}{}}
 \newlabel{eq:constant@cref}{{[equation][8][4]4.8}{[1][14][]14}}
-\@writefile{toc}{\contentsline {section}{\numberline {4.4}The Residual \nobreakspace  {}3.5$\times $ Factor}{14}{section.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.4}Agreement with ERA5 (after the raw-$T$ fix)}{14}{section.4.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {4.5}Implementation in the Pipeline}{15}{section.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {chapter}{\numberline {5}The Wu Pipeline, Step by Step (Benchmark)}{16}{chapter.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {5}The Wu Pipeline, Step by Step}{16}{chapter.5}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:wu_pipeline}{{5}{16}{The Wu Pipeline, Step by Step (Benchmark)}{chapter.5}{}}
+\newlabel{chap:wu_pipeline}{{5}{16}{The Wu Pipeline, Step by Step}{chapter.5}{}}
 \newlabel{chap:wu_pipeline@cref}{{[chapter][5][]5}{[1][16][]16}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.1}Step 05 --- Pass A/B: Mean and Event PV, Balanced $\psi $}{16}{section.5.1}\protected@file@percent }
-\newlabel{sec:step05}{{5.1}{16}{Step 05 --- Pass A/B: Mean and Event PV, Balanced \texorpdfstring {$\psi $}{psi}}{section.5.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.1}Step 05 --- Pass A/B: PV, Boundary $\theta $, Balanced $\psi $}{16}{section.5.1}\protected@file@percent }
+\newlabel{sec:step05}{{5.1}{16}{Step 05 --- Pass A/B: PV, Boundary \texorpdfstring {$\theta $}{theta}, Balanced \texorpdfstring {$\psi $}{psi}}{section.5.1}{}}
 \newlabel{sec:step05@cref}{{[section][1][5]5.1}{[1][16][]16}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Pass A mean Ertel PV}}{16}{figure.caption.11}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Pass A mean Ertel PV}}{16}{figure.caption.7}\protected@file@percent }
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
-\newlabel{fig:wu_mean_pv}{{5.1}{16}{Pass A mean Ertel PV}{figure.caption.11}{}}
+\newlabel{fig:wu_mean_pv}{{5.1}{16}{Pass A mean Ertel PV}{figure.caption.7}{}}
 \newlabel{fig:wu_mean_pv@cref}{{[figure][1][5]5.1}{[1][16][]16}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Event PV anomaly}}{17}{figure.caption.12}\protected@file@percent }
-\newlabel{fig:wu_pv_anom}{{5.2}{17}{Event PV anomaly}{figure.caption.12}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Event PV anomaly}}{17}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:wu_pv_anom}{{5.2}{17}{Event PV anomaly}{figure.caption.8}{}}
 \newlabel{fig:wu_pv_anom@cref}{{[figure][2][5]5.2}{[1][16][]17}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces Balanced mean streamfunction}}{17}{figure.caption.13}\protected@file@percent }
-\newlabel{fig:wu_mean_psi}{{5.3}{17}{Balanced mean streamfunction}{figure.caption.13}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces Balanced mean streamfunction}}{17}{figure.caption.9}\protected@file@percent }
+\newlabel{fig:wu_mean_psi}{{5.3}{17}{Balanced mean streamfunction}{figure.caption.9}{}}
 \newlabel{fig:wu_mean_psi@cref}{{[figure][3][5]5.3}{[1][17][]17}}
 \@writefile{toc}{\contentsline {section}{\numberline {5.2}Step 06 --- Pass C: Total Balanced Inversion (BALNC)}{17}{section.5.2}\protected@file@percent }
 \newlabel{sec:step06}{{5.2}{17}{Step 06 --- Pass C: Total Balanced Inversion (BALNC)}{section.5.2}{}}
 \newlabel{sec:step06@cref}{{[section][2][5]5.2}{[1][17][]17}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces Pass C refinement}}{18}{figure.caption.14}\protected@file@percent }
-\newlabel{fig:wu_passc_refine}{{5.4}{18}{Pass C refinement}{figure.caption.14}{}}
-\newlabel{fig:wu_passc_refine@cref}{{[figure][4][5]5.4}{[1][17][]18}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces Pass C all levels}}{18}{figure.caption.15}\protected@file@percent }
-\newlabel{fig:wu_passc_all}{{5.5}{18}{Pass C all levels}{figure.caption.15}{}}
-\newlabel{fig:wu_passc_all@cref}{{[figure][5][5]5.5}{[1][18][]18}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces Pass C all levels}}{18}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:wu_passc_all}{{5.4}{18}{Pass C all levels}{figure.caption.10}{}}
+\newlabel{fig:wu_passc_all@cref}{{[figure][4][5]5.4}{[1][17][]18}}
 \@writefile{toc}{\contentsline {section}{\numberline {5.3}Step 07 --- Pass D: Piecewise Perturbation Inversion (BALP)}{18}{section.5.3}\protected@file@percent }
 \newlabel{sec:step07}{{5.3}{18}{Step 07 --- Pass D: Piecewise Perturbation Inversion (BALP)}{section.5.3}{}}
 \newlabel{sec:step07@cref}{{[section][3][5]5.3}{[1][18][]18}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.6}{\ignorespaces Pass D three pieces}}{19}{figure.caption.16}\protected@file@percent }
-\newlabel{fig:wu_passd_3}{{5.6}{19}{Pass D three pieces}{figure.caption.16}{}}
-\newlabel{fig:wu_passd_3@cref}{{[figure][6][5]5.6}{[1][18][]19}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.7}{\ignorespaces Piece 3 small-scale noise}}{19}{figure.caption.17}\protected@file@percent }
-\newlabel{fig:wu_passd_noise}{{5.7}{19}{Piece 3 small-scale noise}{figure.caption.17}{}}
-\newlabel{fig:wu_passd_noise@cref}{{[figure][7][5]5.7}{[1][19][]19}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.4}Step 08 --- Parse Outputs and ERA5 Ertel PV}{19}{section.5.4}\protected@file@percent }
-\newlabel{sec:step08}{{5.4}{19}{Step 08 --- Parse Outputs and ERA5 Ertel PV}{section.5.4}{}}
-\newlabel{sec:step08@cref}{{[section][4][5]5.4}{[1][19][]19}}
-\newlabel{eq:wu_ertel_pv}{{5.1}{19}{Step 08 --- Parse Outputs and ERA5 Ertel PV}{equation.5.4.1}{}}
-\newlabel{eq:wu_ertel_pv@cref}{{[equation][1][5]5.1}{[1][19][]19}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.8}{\ignorespaces Wu Q vs ERA5 PV}}{20}{figure.caption.18}\protected@file@percent }
-\newlabel{fig:wu_vs_era5}{{5.8}{20}{Wu Q vs ERA5 PV}{figure.caption.18}{}}
-\newlabel{fig:wu_vs_era5@cref}{{[figure][8][5]5.8}{[1][19][]20}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.5}Step 09 --- PV Advection by the Induced Winds}{20}{section.5.5}\protected@file@percent }
-\newlabel{sec:step09}{{5.5}{20}{Step 09 --- PV Advection by the Induced Winds}{section.5.5}{}}
-\newlabel{sec:step09@cref}{{[section][5][5]5.5}{[1][20][]20}}
-\newlabel{eq:wu_pvadv}{{5.2}{20}{Step 09 --- PV Advection by the Induced Winds}{equation.5.5.2}{}}
-\newlabel{eq:wu_pvadv@cref}{{[equation][2][5]5.2}{[1][20][]20}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.9}{\ignorespaces PV advection per piece}}{21}{figure.caption.19}\protected@file@percent }
-\newlabel{fig:wu_pvadv}{{5.9}{21}{PV advection per piece}{figure.caption.19}{}}
-\newlabel{fig:wu_pvadv@cref}{{[figure][9][5]5.9}{[1][20][]21}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.6}Step 10 --- Fig.\nobreakspace  {}8 Replica (the Benchmark Result)}{21}{section.5.6}\protected@file@percent }
-\newlabel{sec:step10}{{5.6}{21}{Step 10 --- Fig.~8 Replica (the Benchmark Result)}{section.5.6}{}}
-\newlabel{sec:step10@cref}{{[section][6][5]5.6}{[1][21][]21}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.10}{\ignorespaces Davis 2022 Fig.\nobreakspace  {}8 replica}}{22}{figure.caption.20}\protected@file@percent }
-\newlabel{fig:wu_fig8}{{5.10}{22}{Davis 2022 Fig.~8 replica}{figure.caption.20}{}}
-\newlabel{fig:wu_fig8@cref}{{[figure][10][5]5.10}{[1][21][]22}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.7}SI Output Convention (adopted 2026-06-03)}{23}{section.5.7}\protected@file@percent }
-\newlabel{sec:wu_si_output}{{5.7}{23}{SI Output Convention (adopted 2026-06-03)}{section.5.7}{}}
-\newlabel{sec:wu_si_output@cref}{{[section][7][5]5.7}{[1][23][]23}}
-\@writefile{toc}{\contentsline {chapter}{\numberline {6}Conclusions}{24}{chapter.6}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces Pass D three pieces}}{18}{figure.caption.11}\protected@file@percent }
+\newlabel{fig:wu_passd_3}{{5.5}{18}{Pass D three pieces}{figure.caption.11}{}}
+\newlabel{fig:wu_passd_3@cref}{{[figure][5][5]5.5}{[1][18][]18}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.4}Step 08 --- Wu $Q$ vs ERA5 Ertel PV}{18}{section.5.4}\protected@file@percent }
+\newlabel{sec:step08}{{5.4}{18}{Step 08 --- Wu \texorpdfstring {$Q$}{Q} vs ERA5 Ertel PV}{section.5.4}{}}
+\newlabel{sec:step08@cref}{{[section][4][5]5.4}{[1][18][]18}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.6}{\ignorespaces Wu vs ERA5 PV}}{19}{figure.caption.12}\protected@file@percent }
+\newlabel{fig:wu_vs_era5}{{5.6}{19}{Wu vs ERA5 PV}{figure.caption.12}{}}
+\newlabel{fig:wu_vs_era5@cref}{{[figure][6][5]5.6}{[1][18][]19}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.5}Step 10 --- Fig.\nobreakspace  {}8 Replica (PV Advection)}{21}{section.5.5}\protected@file@percent }
+\newlabel{sec:step10}{{5.5}{21}{Step 10 --- Fig.~8 Replica (PV Advection)}{section.5.5}{}}
+\newlabel{sec:step10@cref}{{[section][5][5]5.5}{[1][19][]21}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.7}{\ignorespaces Davis 2022 Fig.\nobreakspace  {}8 replica}}{21}{figure.caption.13}\protected@file@percent }
+\newlabel{fig:wu_fig8}{{5.7}{21}{Davis 2022 Fig.~8 replica}{figure.caption.13}{}}
+\newlabel{fig:wu_fig8@cref}{{[figure][7][5]5.7}{[1][19][]21}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.6}Step 11 --- Cross-Sections and 3-D Structure}{22}{section.5.6}\protected@file@percent }
+\newlabel{sec:step11}{{5.6}{22}{Step 11 --- Cross-Sections and 3-D Structure}{section.5.6}{}}
+\newlabel{sec:step11@cref}{{[section][6][5]5.6}{[1][22][]22}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.8}{\ignorespaces Induced-wind cross-section}}{22}{figure.caption.14}\protected@file@percent }
+\newlabel{fig:wu_xsec}{{5.8}{22}{Induced-wind cross-section}{figure.caption.14}{}}
+\newlabel{fig:wu_xsec@cref}{{[figure][8][5]5.8}{[1][22][]22}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.9}{\ignorespaces PV and piece-$\psi '$ cross-sections}}{23}{figure.caption.15}\protected@file@percent }
+\newlabel{fig:wu_3d}{{5.9}{23}{PV and piece-$\psi '$ cross-sections}{figure.caption.15}{}}
+\newlabel{fig:wu_3d@cref}{{[figure][9][5]5.9}{[1][22][]23}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.10}{\ignorespaces Linear closure check}}{24}{figure.caption.16}\protected@file@percent }
+\newlabel{fig:wu_closure}{{5.10}{24}{Linear closure check}{figure.caption.16}{}}
+\newlabel{fig:wu_closure@cref}{{[figure][10][5]5.10}{[1][23][]24}}
+\citation{Davis1992}
+\@writefile{toc}{\contentsline {chapter}{\numberline {6}Conclusions}{25}{chapter.6}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:conclusion}{{6}{24}{Conclusions}{chapter.6}{}}
-\newlabel{chap:conclusion@cref}{{[chapter][6][]6}{[1][24][]24}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.1}Summary}{24}{section.6.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6.2}Key Finding: Wu PV to SI Conversion is Exactly $10^{-8}$}{24}{section.6.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6.3}Status}{25}{section.6.3}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {6.1}{\ignorespaces SI unit conventions for all pipeline outputs.\relax }}{25}{table.caption.21}\protected@file@percent }
-\newlabel{tab:si_units}{{6.1}{25}{SI unit conventions for all pipeline outputs.\relax }{table.caption.21}{}}
-\newlabel{tab:si_units@cref}{{[table][1][6]6.1}{[1][25][]25}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.4}Non-Dimensional Scales (Reference)}{25}{section.6.4}\protected@file@percent }
+\newlabel{chap:conclusion}{{6}{25}{Conclusions}{chapter.6}{}}
+\newlabel{chap:conclusion@cref}{{[chapter][6][]6}{[1][25][]25}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.1}Summary}{25}{section.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.2}Key Findings}{25}{section.6.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6.1}{\ignorespaces SI unit conventions for all pipeline outputs.\relax }}{26}{table.caption.17}\protected@file@percent }
+\newlabel{tab:si_units}{{6.1}{26}{SI unit conventions for all pipeline outputs.\relax }{table.caption.17}{}}
+\newlabel{tab:si_units@cref}{{[table][1][6]6.1}{[1][26][]26}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.3}Limitations and Future Work}{26}{section.6.3}\protected@file@percent }
 \gdef \LT@i {\LT@entry 
-    {2}{86.47348pt}\LT@entry 
+    {2}{82.85303pt}\LT@entry 
     {2}{86.87706pt}\LT@entry 
-    {2}{192.6756pt}}
-\@writefile{toc}{\contentsline {chapter}{\numberline {A}Notation Glossary}{26}{appendix.A}\protected@file@percent }
+    {2}{233.00757pt}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {A}Notation Glossary}{27}{appendix.A}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{app:notation}{{A}{26}{Notation Glossary}{appendix.A}{}}
-\newlabel{app:notation@cref}{{[appendix][1][2147483647]A}{[1][26][]26}}
-\@writefile{toc}{\contentsline {chapter}{\numberline {B}Public-API Reference}{27}{appendix.B}\protected@file@percent }
+\newlabel{app:notation}{{A}{27}{Notation Glossary}{appendix.A}{}}
+\newlabel{app:notation@cref}{{[appendix][1][2147483647]A}{[1][27][]27}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {B}Public-API Reference}{28}{appendix.B}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{app:api}{{B}{27}{Public-API Reference}{appendix.B}{}}
-\newlabel{app:api@cref}{{[appendix][2][2147483647]B}{[1][27][]27}}
-\@writefile{toc}{\contentsline {section}{\numberline {B.1}Part I --- Wu Fortran reference (\texttt  {wu/})}{27}{section.B.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.1.1}\texttt  {config.py} (shared)}{27}{subsection.B.1.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.1.2}Fortran programs (\texttt  {wu/fortran/})}{27}{subsection.B.1.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.1.3}Step drivers (\texttt  {wu/steps/})}{27}{subsection.B.1.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {B.2}Part II --- Wu Python finite-difference port (\texttt  {wu\_python/})}{27}{section.B.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.2.1}\texttt  {wu\_python/core/grid.py}}{27}{subsection.B.2.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.2.2}\texttt  {wu\_python/core/nondim.py}}{28}{subsection.B.2.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.2.3}\texttt  {wu\_python/core/fd\_ops.py}}{28}{subsection.B.2.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.2.4}\texttt  {wu\_python/core/sor\_solver.py}}{28}{subsection.B.2.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.2.5}\texttt  {wu\_python/core/pv\_calc.py}}{28}{subsection.B.2.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.2.6}\texttt  {wu\_python/core/balance.py} (BALNC)}{28}{subsection.B.2.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.2.7}\texttt  {wu\_python/core/piecewise.py} (BALP)}{28}{subsection.B.2.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.2.8}\texttt  {wu\_python/config.py}}{28}{subsection.B.2.8}\protected@file@percent }
+\newlabel{app:api}{{B}{28}{Public-API Reference}{appendix.B}{}}
+\newlabel{app:api@cref}{{[appendix][2][2147483647]B}{[1][28][]28}}
+\@writefile{toc}{\contentsline {section}{\numberline {B.1}Configuration}{28}{section.B.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.1.1}\texttt  {config.py} and \texttt  {wu/wu\_config.yaml}}{28}{subsection.B.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {B.2}Fortran programs (\texttt  {wu/fortran/})}{28}{section.B.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {B.3}Shared front end (\texttt  {shared\_steps/})}{28}{section.B.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {B.4}Wu step drivers (\texttt  {wu/steps/})}{28}{section.B.4}\protected@file@percent }
 \bibstyle{plain}
 \bibdata{refs}
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.2.9}Step drivers (\texttt  {wu\_python/steps/})}{29}{subsection.B.2.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {B.3}Shared utilities (\texttt  {pvtend.sh\_ops})}{29}{section.B.3}\protected@file@percent }
-\bibcite{Baker2005LGMRES}{1}
+\@writefile{toc}{\contentsline {section}{\numberline {B.5}Key output: \texttt  {piecewise\_psi.nc}}{29}{section.B.5}\protected@file@percent }
+\bibcite{Davis1992}{1}
 \bibcite{HoskinsMcIntyreRobertson1985}{2}
-\bibcite{Saad1993LGMRES}{3}
 \gdef \@abspage@last{31}

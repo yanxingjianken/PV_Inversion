@@ -5,48 +5,62 @@
 
 This handbook documents \textbf{piecewise potential-vorticity inversion}
 (PPVI) for atmospheric blocking, as implemented in
-\texttt{pv\_inversion/}.  The goal of the project is to reproduce the
-diagnostic of Davis et~al.\ (2022, \emph{J.\ Climate}, their Fig.~8) for
-the 2025-01-08 California blocking event: partition the upper-level PV
-anomaly into vertical pieces, invert each piece to a balanced
-circulation, and quantify how each piece advects PV to sustain the
-block.
+\texttt{pv\_inversion/}.  The goal is to take the 2025-01-08 California
+blocking event, partition its potential-vorticity (PV) anomaly into
+vertical pieces, invert each piece to its own balanced circulation, and
+thereby quantify how the upper-tropospheric PV anomaly, the
+mid/low-tropospheric PV, and the \emph{surface thermal} anomaly each
+contribute to the blocking flow.
 
-The repository carries \textbf{two independent inversion tracks} that
-share a common ERA5 data-preparation front end:
+The pipeline has a single numerical core: \textbf{W.~Wu's
+finite-difference successive-over-relaxation (SOR) solver}
+(\texttt{wu/fortran/pvpialln\_94UV.f}, \texttt{qinvert21\_94.f},
+\texttt{qinvertp21\_94.f}), driven from a thin Python orchestration
+layer (\texttt{wu/steps/}).  This Fortran is the same lineage as
+C.~Davis's \texttt{PVPI.FOR} \cite{Davis1992} and the modern GFDL/CSU
+PPVI tool; the inversion mathematics is unchanged, only the driving and
+post-processing are in Python.
 
-\begin{enumerate}\setlength\itemsep{2pt}
-  \item the \textbf{Wu Fortran reference} (\texttt{pv\_inversion/wu/}) ---
-        W.~Wu's finite-difference successive-over-relaxation (SOR)
-        solver (\texttt{pvpialln\_94UV.f}, \texttt{qinvert21\_94.f},
-        \texttt{qinvertp21\_94.f}).  This track \textbf{works}: it
-        reproduces the Davis 2022 Fig.~8 diagnostic end-to-end and is
-        therefore treated as the \emph{benchmark}.  It is the subject of
-        \textbf{Part~I} (\Cref{chap:wu_solver,chap:wu_pipeline}), where
-        every pass is illustrated with the plot it generates.
-  \item the \textbf{Wu Python finite-difference (FD) port}
-        (\texttt{pv\_inversion/wu\_python/}) --- a faithful re-implementation of
-        Wu's non-dimensional balance system on the same regional $51\times87$
-        lat-lon grid, using finite differences and numba-accelerated SOR.
-        This is the subject of \textbf{Part~II}
-        (\Cref{chap:fd,chap:wupy_pv,chap:wu_balnc}).  It documents the
-        operator mapping, forward PV computation, non-dimensionalization, and
-        the current state of the pure-Python pipeline.
-\end{enumerate}
-
-\begin{keybox}[What was retired]
-Three earlier solvers have been removed from the codebase and from this handbook:
-\begin{itemize}
-  \item Two SH solvers --- a one-step \emph{Direct Spectral Solve} and an
-        \emph{LGMRES + linearized-Charney} solver (collectively ``Family-B'').
-        Their governing closure (the linear $f_0$-plane balance) is retained in
-        \Cref{sec:closure}.
-  \item The \textbf{Python spherical-harmonic (SH) BALNC port} --- this was a
-        faithful re-implementation on the full-hemisphere SH grid using
-        \texttt{pvtend.sh\_ops}, but it did not converge and has been superseded
-        by the Wu Python finite-difference port (\texttt{wu\_python/}).
-\end{itemize}
+\begin{keybox}[What this handbook is about]
+A \emph{single} working track --- the Wu Fortran pipeline --- on a
+\textbf{nine-level} ERA5 grid, with the PV perturbation split into
+\textbf{three pieces} that mirror the reference partition
+$\{1\},\{2,3\},\{4..N_L\}$:
+\begin{center}\small
+\begin{tabular}{lll}
+\toprule
+piece & levels $K$ & physical content \\
+\midrule
+\textbf{surface} & $\{1\}$              & 1000\,hPa boundary $\theta$ (the surface heating) \\
+\textbf{lower}   & $\{2,3\}$            & 850, 700\,hPa interior PV \\
+\textbf{upper}   & $\{4,5,6,7,8,9\}$    & 500--200\,hPa interior PV $+$ 100\,hPa top $\theta$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+The key conceptual point (\Cref{chap:math,chap:wu_solver}): the
+\textbf{surface warm-$\theta$ anomaly is a boundary condition, not an
+interior PV value} --- by Bretherton's equivalence it acts as a
+PV \emph{sheet} at the lower boundary, and we invert it as its own
+``surface'' piece.
 \end{keybox}
+
+\begin{warnbox}[Retired material]
+Earlier drafts described a second ``Part~II'' spherical-harmonic (SH)
+Python port and several Family-B solvers (a direct spectral solve and an
+LGMRES/linearized-Charney solver).  \textbf{These have been removed.}
+The SH BALNC/BALP port never converged and is no longer maintained;
+this handbook documents only the Wu Fortran pipeline that runs
+end-to-end.
+\end{warnbox}
+
+\section{The Case: 2025-01-08 California Block}
+
+The event is a strong wintertime ridge over the northeast Pacific / west
+coast of North America that contributed to the January 2025 California
+wildfire outbreak.  At the analysis time (2025-01-08 00\,UTC) the
+500\,hPa block centre is at $\approx 31.5^\circ$N, $222^\circ$E
+($138^\circ$W), with $Z_{500}\approx 5890$\,m.  All cross-sections and
+the 3-D structure figure (\Cref{sec:step11}) are centred on this point.
 
 \section{Notation Cheat-Sheet}
 
@@ -60,13 +74,13 @@ Three earlier solvers have been removed from the codebase and from this handbook
   $\dpsi=\psi-\bpsi$, $\dPhi=\Phi-\bPhi$ & anomalies \\
   $q$ & Ertel potential vorticity (PVU = $10^{-6}\,$K\,m$^2$\,kg$^{-1}$\,s$^{-1}$) \\
   $\bq$, $\dq=q-\bq$ & mean and anomalous PV \\
+  $\theta_b$ & boundary potential temperature (surface / top) \\
   $\zeta=\Lap\psi$ & relative vorticity \\
   $f=2\Omega\sin\phi$, $f_0=f(45^\circ)$ & Coriolis parameter, reference value \\
   $\pi=(p/p_0)^{\kappa}$ & Exner function ($p_0=10^{5}$ Pa, $\kappa=R/c_p$) \\
   $\theta=T(p_0/p)^{\kappa}$ & potential temperature \\
-  $\Aavo=f+\bzeta$, $\Bstb=\partial^2\bPhi/\partial\pi^2$ & avorticity, static stability proxy \\
-  $\Lap$, $\Lapinv$ & horizontal Laplacian and its spectral inverse \\
-  $D_1, D_2$ & first/second-derivative matrices in $\pi$ \\
+  $K=1\ldots N_L$ & 1-indexed Fortran level ($K{=}1$ surface, $K{=}N_L$ top) \\
+  $\Lap$, $\Lapinv$ & horizontal Laplacian and its inverse \\
   \bottomrule
 \end{tabular}
 \end{center}
@@ -75,37 +89,22 @@ A more complete glossary appears in \Cref{app:notation}.
 
 \section{Quick Tour of the Code}
 
-\paragraph{Part~I --- the Wu Fortran reference
-(\texttt{pv\_inversion/wu/}).}
 \begin{center}\small
 \begin{tabular}{lll}
   \toprule
   Component & Purpose & Reference \\
   \midrule
-  \texttt{wu/fortran/pvpialln\_94UV.f}  & Pass A/B: Ertel PV + balanced $\psi$, $\Phi$ & \Cref{chap:wu_solver} \\
-  \texttt{wu/fortran/qinvert21\_94.f}   & Pass C: total balanced inversion (BALNC)    & \Cref{chap:wu_solver} \\
-  \texttt{wu/fortran/qinvertp21\_94.f}  & Pass D: piecewise perturbation (BALP)       & \Cref{chap:wu_solver} \\
-  \texttt{wu/steps/05\ldots10/}         & the step-by-step pipeline + plots           & \Cref{chap:wu_pipeline} \\
-  \texttt{config.py}                    & grid, levels, solver parameters             & \Cref{chap:wu_solver} \\
+  \texttt{config.py} / \texttt{wu/wu\_config.yaml} & grid, 9 levels, pieces, solver params & \Cref{chap:wu_solver} \\
+  \texttt{wu/fortran/pvpialln\_94UV.f}  & Pass A/B: Ertel PV, $\bar\psi$, $\theta_b$ & \Cref{chap:wu_solver} \\
+  \texttt{wu/fortran/qinvert21\_94.f}   & Pass C: total balanced inversion (BALNC) & \Cref{chap:wu_solver} \\
+  \texttt{wu/fortran/qinvertp21\_94.f}  & Pass D: piecewise perturbation (BALP)    & \Cref{chap:wu_solver} \\
+  \texttt{wu/steps/05\ldots11/}         & the step-by-step pipeline + plots         & \Cref{chap:wu_pipeline} \\
+  \texttt{wu/steps/08/parse\_and\_pv.py} & Wu\,$Q\to$ SI Ertel PV ($\times10^{-8}$)  & \Cref{chap:wu_coeffs} \\
   \bottomrule
 \end{tabular}
 \end{center}
 
-\paragraph{Part~II --- the Python SH port
-(\texttt{pv\_inversion/sh/}).}
-\begin{center}\small
-\begin{tabular}{lll}
-  \toprule
-  Module & Purpose & Reference \\
-  \midrule
-  \texttt{sh\_ppvi/coords.py}    & vertical Exner grid, $D_1, D_2$, Coriolis   & \Cref{chap:math} \\
-  \texttt{pvtend.sh\_ops}        & SH gradient/Laplacian/Helmholtz (reference only) & \Cref{chap:fd} \\
-  \texttt{wu\_python/core/pv\_calc.py}  & Ertel PV diagnostic                         & \Cref{chap:wupy_pv} \\
-  \texttt{sh\_ppvi/nondim.py}    & Wu non-dimensional scales                   & \Cref{chap:wu_balnc} \\
-  \texttt{sh\_ppvi/sor.py}       & $BB,BH,BL$ vertical stencil                 & \Cref{chap:wu_balnc} \\
-  \texttt{sh\_ppvi/wu\_ops.py}   & Wu-scaled SH operator wrappers              & \Cref{chap:wu_balnc} \\
-  \texttt{sh\_ppvi/balnc.py}     & coupled BALNC ($H$--$\psi$) Picard solve    & \Cref{chap:wu_balnc} \\
-  \texttt{sh\_ppvi/balp.py}      & piecewise BALP (pending convergence)        & \Cref{chap:wu_balnc} \\
-  \bottomrule
-\end{tabular}
-\end{center}
+\noindent The shared front end (\texttt{shared\_steps/01\ldots04}) downloads
+the ERA5 event hour, builds a 30-year climatology, and writes the
+Fortran \texttt{.grid} input files; the Wu steps (05--11) compile and run
+the four passes and produce all diagnostics.

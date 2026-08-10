@@ -19,11 +19,11 @@
   $D_1,\,D_2$          & --           & 1st/2nd derivative matrices in $\pi$ \\
   $f=2\Omega\sin\phi$  & s$^{-1}$     & Coriolis parameter \\
   $f_0=f(45^\circ)$    & s$^{-1}$     & reference Coriolis \\
-  $g$                  & m/s$^2$      & gravity (9.80665) \\
+  $g$                  & m/s$^2$      & gravity (Fortran $9.81$) \\
   $J(a,b)$             & varies       & Jacobian \\
-  $\kappa=R_d/c_p$     & --           & 0.28586 \\
-  $\Lap,\;\Lapinv$     & m$^{-2}$     & spherical Laplacian and its inverse \\
-  $\lambda_l=l(l+1)/a^2$ & m$^{-2}$   & SH Laplacian eigenvalue \\
+  $\kappa=R_d/c_p$     & --           & $2/7\approx 0.2857$ (Wu hardcoded) \\
+  $\Lap,\;\Lapinv$     & m$^{-2}$     & horizontal Laplacian and its inverse \\
+  $\theta_b$           & K            & boundary potential temperature (surface/top) \\
   $\Omega$             & rad/s        & Earth rotation rate $7.292\times10^{-5}$ \\
   $\pi=(p/p_0)^{\kappa}$ & --         & Exner pressure \\
   $p_0$                & Pa           & reference pressure $10^{5}$ \\

@@ -1,43 +1,45 @@
-\chapter{The Wu Fortran Reference Solver}
+\chapter{The Wu Fortran Solver}
 \label{chap:wu_solver}
 
-This chapter describes the working benchmark: W.~Wu's finite-difference
-piecewise PV-inversion code, ported only in the sense of being
-\emph{driven} from Python (\texttt{wu/steps/}) while the numerical core
-remains the original Fortran-77.  The three programs live in
-\texttt{wu/fortran/} and are compiled with
+This chapter describes the numerical core: W.~Wu's finite-difference
+piecewise PV-inversion code, driven from Python (\texttt{wu/steps/})
+while the solver itself remains the original Fortran-77.  The three
+programs live in \texttt{wu/fortran/} and are compiled with
 \texttt{gfortran -std=legacy -O2 -fno-automatic}.
 
 \section{Grid and Vertical Levels}
 \label{sec:wu_grid}
 
-The solver operates on a bounded Northern-Hemisphere window
-(\texttt{config.py}):
+The solver runs on an extended Northern-Hemisphere window
+(\texttt{config.py}, \texttt{wu/wu\_config.yaml}):
 
 \begin{center}\small
 \begin{tabular}{lll}
   \toprule
   Quantity & Symbol / code & Value \\
   \midrule
-  Longitudes & $N_X$ & $87$ \\
+  Longitudes & $N_X$ & $134$ \\
   Latitudes  & $N_Y$ & $51$ \\
-  Levels     & $N_W$ & $10$ \\
-  Latitude row & $\phi_i = 85.5 - 1.5\,i$ & $85.5^\circ\!\to\!-13.5^\circ$ (N$\to$S) \\
-  Longitude col & $\lambda_j = -169.5 + 1.5\,j$ & $-169.5^\circ\!\to\!-40.5^\circ$ \\
-  Pressure levels & PLEVS [hPa] & $1000,925,850,700,600,$ \\
-                  &             & $500,400,300,250,200$ \\
-  Earth radius & $R_{\oplus}=2\times10^{7}/\pi$ & $6.366\times10^{6}$ m \\
-  Grid spacing & $\Delta p=\Delta l = R_{\oplus}\,\mathrm{rad}(1.5^\circ)$ & $1.667\times10^{5}$ m \\
+  Levels     & $N_W=N_L$ & $9$ \\
+  Latitude row & $\phi_i = 85.5 - 1.5\,i$ & $85.5^\circ\!\to\!10.5^\circ$ (N$\to$S) \\
+  Longitude col & $\lambda_j = 120 + 1.5\,j$ & $120^\circ\mathrm{E}\!\to\!319.5^\circ\mathrm{E}$ ($=40.5^\circ$W) \\
+  Pressure levels & PLEVS [hPa] & $1000,850,700,500,400,$ \\
+                  &             & $300,250,200,100$ \\
+  Earth radius & $a=2\times10^{7}/\pi$ & $6.366\times10^{6}$ m \\
+  Grid spacing & $\Delta p=\Delta l = a\,\mathrm{rad}(1.5^\circ)$ & $1.667\times10^{5}$ m \\
   \bottomrule
 \end{tabular}
 \end{center}
 
 \begin{warnbox}[Fortran \texttt{PARAMETER} blocks are hard-wired]
-$N_X,N_Y$ appear as compile-time \texttt{PARAMETER}s inside every
-\texttt{.f} file.  Changing the grid requires editing and recompiling
-the Fortran, not just \texttt{config.py}.  The Python drivers pass
-solver \emph{parameters} (relaxation factors, iteration caps) over
-\texttt{stdin}; they cannot change the array dimensions.
+$N_X,N_Y,N_W$ appear as compile-time \texttt{PARAMETER}s inside
+\emph{every} \texttt{.f} file (and inside each subroutine).  Changing the
+grid requires editing and recompiling the Fortran --- not just
+\texttt{config.py}.  The current 9-level build sets \texttt{NW=9},
+\texttt{NL=9}, and a 9-value \texttt{DATA PR} array in all three sources.
+The Python drivers pass solver \emph{parameters} (relaxation factors,
+piece definitions) over \texttt{stdin}; they cannot change array
+dimensions.
 \end{warnbox}
 
 \section{The Three Programs and Four Passes}
@@ -48,78 +50,110 @@ solver \emph{parameters} (relaxation factors, iteration caps) over
   \toprule
   Pass & Program & Subroutine & Produces \\
   \midrule
-  A & \texttt{pvpialln}  & ---    & \texttt{meanq}, \texttt{meanh} (mean PV, $\psi$, $\Phi$) \\
-  B & \texttt{pvpialln}  & ---    & \texttt{event\_q.out}, \texttt{event\_h.out} (event PV, $\psi$, $\Phi$) \\
+  A & \texttt{pvpialln}  & ---    & \texttt{meanq}, \texttt{meanh} (mean $Q$, $\theta_b$, $\psi$) \\
+  B & \texttt{pvpialln}  & ---    & \texttt{event\_q.out}, \texttt{event\_h.out} \\
   C & \texttt{qinvert21} & BALNC  & \texttt{event\_bal.out} (total balanced $\psi$, $\Phi$) \\
-  D & \texttt{qinvertp21}& BALP   & \texttt{event\_pert.out} (3-piece perturbation $\psi'$) \\
+  D & \texttt{qinvertp21}& BALP   & \texttt{event\_pert.out} (3-piece $\psi'$) \\
   \bottomrule
 \end{tabular}
 \end{center}
 
-\paragraph{Pass A/B --- \texttt{pvpialln}.}  Computes Ertel PV on the
-interior $\sigma$-levels ($K=2\ldots N_W{-}1$, i.e.\ $925$--$250$ hPa),
-the balanced streamfunction $\psi$ by relative-vorticity inversion, the
-geopotential $\Phi$ on pseudo-height, and the boundary potential
-temperature $\theta$ at top and bottom.  Pass A is run on the
-11-day climatological mean state; Pass B on the event state.
+\paragraph{Pass A/B --- \texttt{pvpialln}.}  Computes the boundary
+potential temperatures $\theta_b^{\text{bot}},\theta_b^{\text{top}}$
+(\Cref{sec:boundary_theta}), the Ertel-like PV on the interior levels
+($K=2\ldots N_W{-}1$, i.e.\ 850--200\,hPa), the balanced streamfunction
+$\psi$ from relative-vorticity inversion, and the geopotential.  Pass~A
+runs on the 30-year climatological mean state; Pass~B on the
+2025-01-08 event state.  The \texttt{q.out} layout is
+$[\theta_b^{\text{bot}},\theta_b^{\text{top}},Q(K{=}2..N_W{-}1)]$.
 
-\paragraph{Pass C --- \texttt{qinvert21} (BALNC).}  Solves the full
-\emph{total} balanced inversion: a 2-D Helmholtz equation for $\psi$ on
-each $\sigma$-level coupled to a 3-D PV--$\psi$ relation under
-gradient-wind balance, by successive over-relaxation with
-under-relaxation between $\psi$ and $\Phi$.  The non-dimensional form of
-this coupled system --- which the Python SH port re-implements verbatim
---- is given in \Cref{sec:wu_balnc_eqs}.
+\paragraph{Pass C --- \texttt{qinvert21} (BALNC).}  The full
+\emph{total} balanced inversion: a 2-D Helmholtz problem for $\psi$ on
+each level coupled to a 3-D PV--$\psi$ relation under gradient-wind
+balance, by SOR with under-relaxation between $\psi$ and $\Phi$.  The
+boundary $\theta$ enters as the inhomogeneous Neumann condition of
+\Cref{sec:boundary_theta}.
 
 \paragraph{Pass D --- \texttt{qinvertp21} (BALP).}  Partitions the PV
 \emph{perturbation} $\dq=q_{\text{event}}-q_{\text{mean}}$ into three
-vertical pieces and inverts each independently to its perturbation
-streamfunction $\psi'$:
+pieces and inverts each independently to its perturbation streamfunction
+$\psi'$.  In the BALP convention a piece is a list \texttt{QLV} of level
+indices, where the value \texttt{1} activates the \emph{lower-boundary}
+$\theta$, \texttt{NL} the \emph{upper-boundary} $\theta$, and
+$2..N_L{-}1$ the interior PV at that level:
 
 \begin{center}\small
-\begin{tabular}{lll}
+\begin{tabular}{llll}
   \toprule
-  Piece & Levels $K$ & Pressures \\
+  Piece & \texttt{QLV} & Activates & Pressures \\
   \midrule
-  1 (lower)  & $\{1,2\}$       & $1000, 925$ hPa \\
-  2 (middle) & $\{3,4\}$       & $850, 700$ hPa \\
-  3 (upper)  & $\{5,6,7,8,9\}$ & $600,500,400,300,250$ hPa \\
+  \textbf{surface} & $\{1\}$              & 1000\,hPa boundary $\theta$ only & --- \\
+  \textbf{lower}   & $\{2,3\}$            & interior PV & $850,700$ hPa \\
+  \textbf{upper}   & $\{4,5,6,7,8,9\}$    & interior PV $+$ top $\theta$ ($\texttt{9}{=}N_L$) & $500$--$200$ hPa $+\,100\,\theta$ \\
   \bottomrule
 \end{tabular}
 \end{center}
+
+The three \texttt{QLV} lists cover every field
+($\theta_b^{\text{bot}}$, interior PV at $K{=}2..8$, $\theta_b^{\text{top}}$)
+exactly once, which is the precondition for the additivity
+\cref{eq:additivity}.  The stdin actually sent is
+\texttt{1,1}\,/\,\texttt{2,2,3}\,/\,\texttt{5,4,5,6,7,8,9}.
+
+\begin{keybox}[The surface piece is the surface heating]
+Because \texttt{QLV}=$\{1\}$ activates only the lower-boundary $\theta$,
+the \textbf{surface piece is the inversion of the surface
+warm/cold-$\theta$ anomaly} (the Bretherton PV sheet,
+\Cref{sec:boundary_theta}) --- not of any interior 1000\,hPa PV (there is
+none).  This isolates the surface thermal forcing from the
+free-tropospheric PV, mirroring the reference inv3d partition.
+\end{keybox}
 
 \section{Solver Parameters}
 \label{sec:wu_params}
 
-The relaxation parameters below are passed over \texttt{stdin} by the
-step drivers and are the values that make Pass~C/D stable on this grid:
+Parameters are passed over \texttt{stdin} from \texttt{wu\_config.yaml}:
 
 \begin{center}\small
-\begin{tabular}{lll}
+\begin{tabular}{llll}
   \toprule
-  Parameter & Value & Role \\
+  Param & Pass C & Pass D & Role \\
   \midrule
-  \texttt{OMEGS} & $1.4$ & SOR factor for the $\psi$ (streamfunction) sweep \\
-  \texttt{OMEGH} & $1.4$ & SOR factor for the $\Phi$/$H$ (geopotential) sweep \\
-  \texttt{PART}  & $0.5$ & under-relaxation coupling $\psi\leftrightarrow\Phi$ \\
-  \texttt{INLIN} & $0$   & \textbf{linear} balance (mandatory; see warning) \\
-  \texttt{MAXT}  & $200$ & outer-iteration cap \\
-  \texttt{THRSH} & $0.01$& convergence threshold \\
+  \texttt{OMEGS} & $1.4$  & $1.85$ & SOR factor, $\psi$ sweep \\
+  \texttt{OMEGH} & $1.4$  & $1.4$  & SOR factor, $\Phi/H$ sweep \\
+  \texttt{PART}  & $0.05$ & $0.05$ & under-relaxation $\psi\!\leftrightarrow\!\Phi$ \\
+  \texttt{THRSH} & $0.01$ & $0.1$  & convergence threshold \\
+  \texttt{INLIN} & ---    & $1$    & \textbf{nonlinear} balance (additivity) \\
+  \texttt{IBC}   & ---    & $0$    & homogeneous Dirichlet lateral walls \\
   \bottomrule
 \end{tabular}
 \end{center}
 
-\begin{warnbox}[\texttt{INLIN=0} is mandatory]
-With the nonlinear balance enabled (\texttt{INLIN=1}) the iteration
-explodes at the $250$\,hPa jet.  All production passes use the
-\emph{linear} balance \texttt{INLIN=0}.  The same instability re-appears
-as the dominant obstacle in the SH port (\Cref{sec:wu_open}).
-\end{warnbox}
+\noindent \texttt{qinvertp21\_94.f} \emph{hardcodes} its iteration caps
+and PV floor ($\texttt{MAX}=8000$, $\texttt{MAXT}=2000$,
+$\texttt{QMIN}=10^{-5}$); the YAML does not set them.  The
+non-dimensional Exner increment is $\texttt{DPI}=500/N_L=55.56$
+(auto-scaled with $N_L$).
 
-\begin{keybox}[Wu's PV units are solver-internal]
-Wu's internal $Q$ is \emph{not} in PVU; it is roughly $600\times$ a PVU
-(an artifact of the non-dimensionalisation, \Cref{sec:wu_nondim}).
-Every physical-unit diagnostic (PV anomaly contours, PV advection) is
-therefore computed from a \emph{separately} evaluated Ertel PV on the
-ERA5 fields (\Cref{sec:step08}), never from Wu's $Q$ directly.
-\end{keybox}
+\section{Convergence and Closure (current behaviour)}
+\label{sec:wu_converge}
+
+\begin{itemize}\setlength\itemsep{2pt}
+  \item \textbf{Pass D} converges cleanly: all three pieces report
+        \texttt{TOTAL CONVERGENCE}, no NaNs, with physical magnitudes
+        (the upper piece dominates the 250\,hPa response).
+  \item \textbf{Pass C} prints \texttt{PHI CONVERGED} (per-cycle residual
+        $\sim 10^{-4}$, below threshold) and then a \emph{benign}
+        ``started diverging'' from \texttt{qinvert21}'s outer-coupling
+        heuristic (it fires when an outer cycle needs $>\!10$ more inner
+        iterations after $>\!30$ cycles).  The written
+        \texttt{event\_bal.out} is the per-cycle-converged field
+        (identical at $\omega=1.2$ and $1.4$); it is used as the total
+        reference for Pass~D.
+  \item \textbf{Top boundary 100\,hPa is non-uniform} ($\Delta\sigma$
+        jumps $0.05\!\to\!0.10$ from 200 to 100\,hPa).  This is accepted:
+        the 9-level grid closes the piecewise sum substantially better
+        (linear-closure $R^2\!\approx\!0.44$ at 250\,hPa) than a
+        uniform-top 8-level grid ($R^2\!\approx\!-0.2$), and all
+        analysis of interest is at $\le 200$\,hPa.
+\end{itemize}

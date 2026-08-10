@@ -1,30 +1,29 @@
-\chapter{The Wu Pipeline, Step by Step (Benchmark)}
+\chapter{The Wu Pipeline, Step by Step}
 \label{chap:wu_pipeline}
 
-This chapter walks through the six executable steps in
-\texttt{wu/steps/} that take the raw Wu Fortran output to the Davis 2022
-Fig.~8 diagnostic.  Each step is illustrated with the figure it
-generates (regenerated for this handbook into
-\texttt{handbook/figs/wu/}).  This pipeline is the project
-\textbf{benchmark}: the SH port of Part~II is judged against it.
+This chapter walks through the executable steps in \texttt{wu/steps/}
+that take the raw Fortran output to the piecewise diagnostics.  Each
+step is illustrated with the figure it generates (regenerated for this
+handbook into \texttt{handbook/figs/wu/}).
 
-\section{Step 05 --- Pass A/B: Mean and Event PV, Balanced \texorpdfstring{$\psi$}{psi}}
+\section{Step 05 --- Pass A/B: PV, Boundary \texorpdfstring{$\theta$}{theta}, Balanced \texorpdfstring{$\psi$}{psi}}
 \label{sec:step05}
 
 Step~05 compiles the three Fortran programs and runs \texttt{pvpialln}
-twice: Pass~A on the 11-day mean state (\texttt{meanq}, \texttt{meanh})
+twice: Pass~A on the 30-year mean state (\texttt{meanq}, \texttt{meanh})
 and Pass~B on the 2025-01-08 event state (\texttt{event\_q.out},
-\texttt{event\_h.out}).  The Ertel PV is computed on the interior
-levels $925$--$250$\,hPa and the balanced streamfunction follows from
-relative-vorticity inversion.
+\texttt{event\_h.out}).  It computes the boundary $\theta$
+($\theta_b^{\text{bot}}$ at 1000, $\theta_b^{\text{top}}$ at 100\,hPa),
+the interior Ertel PV on $850$--$200$\,hPa, and the balanced
+streamfunction.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{figs/wu/wu_mean_pv_3levels.png}
   \caption[Pass A mean Ertel PV]{\textbf{Step 05 / Pass A.} Mean-state
-  Ertel PV (Wu internal units) at three representative levels.  The
-  upper-level panel shows the climatological jet-related PV gradient
-  that the event anomaly will perturb.}
+  Ertel PV (Wu internal units) at three representative \emph{interior}
+  levels.  The upper-level panel shows the climatological jet PV gradient
+  that the event anomaly perturbs.}
   \label{fig:wu_mean_pv}
 \end{figure}
 
@@ -32,9 +31,10 @@ relative-vorticity inversion.
   \centering
   \includegraphics[width=\textwidth]{figs/wu/wu_pv_anomaly_3levels.png}
   \caption[Event PV anomaly]{\textbf{Step 05 / Pass B.} Event-minus-mean
-  PV anomaly $\dq$ at three levels: the upper-tropospheric positive
-  anomaly is the signature of the blocking ridge to be inverted
-  piecewise in Pass~D.}
+  PV anomaly $\dq$.  The dominant upper-tropospheric positive anomaly is
+  the blocking ridge inverted in the \emph{upper} piece of Pass~D; the
+  weak low-level anomaly is dwarfed by it (and the surface heating itself
+  lives in the boundary $\theta$, not in this interior field).}
   \label{fig:wu_pv_anom}
 \end{figure}
 
@@ -42,202 +42,124 @@ relative-vorticity inversion.
   \centering
   \includegraphics[width=0.78\textwidth]{figs/wu/wu_mean_psi_500hpa.png}
   \caption[Balanced mean streamfunction]{\textbf{Step 05.} Balanced
-  mean-state streamfunction $\bpsi$ at $500$\,hPa from \texttt{pvpialln}
-  --- the basic state about which the perturbation inversion linearises.}
+  mean-state streamfunction $\bpsi$ at $500$\,hPa --- the basic state
+  about which the nonlinear (\texttt{INLIN}=1) perturbation inversion is
+  linearised.}
   \label{fig:wu_mean_psi}
 \end{figure}
 
 \section{Step 06 --- Pass C: Total Balanced Inversion (BALNC)}
 \label{sec:step06}
 
-Step~06 runs \texttt{qinvert21} (BALNC) to refine the event state into a
-\emph{fully} balanced $(\psi,\Phi)$ pair (\texttt{event\_bal.out}), using
-$\texttt{OMEGS}=\texttt{OMEGH}=1.4$, $\texttt{PART}=0.5$,
-$\texttt{INLIN}=0$.
-
-\begin{keybox}[Pass C confirms Pass B is already balanced]
-For this case the Pass~C streamfunction is \emph{bit-identical} to the
-Pass~B field: the refinement panel
-(\Cref{fig:wu_passc_refine}, right) is exactly zero.  The total-balance
-inversion therefore acts as a consistency check, confirming that the
-\texttt{pvpialln} balanced state already satisfies the full BALNC
-balance to solver tolerance.  (The solver reports hitting its iteration
-cap while the increment stays at machine zero.)
-\end{keybox}
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\textwidth]{figs/wu/pass_c_psi_refinement.png}
-  \caption[Pass C refinement]{\textbf{Step 06 / Pass C.} $500$\,hPa
-  streamfunction: Pass~B initial (left), Pass~C refined (middle), and
-  their difference (right).  The zero refinement panel confirms the
-  state is already balanced.}
-  \label{fig:wu_passc_refine}
-\end{figure}
+Step~06 runs \texttt{qinvert21} (BALNC) to produce the total balanced
+$(\psi,\Phi)$ pair (\texttt{event\_bal.out}), the reference from which
+Pass~D forms the perturbation.  Per-cycle convergence is reached
+($\sim 10^{-4}$, below threshold); the trailing ``started diverging''
+message is the benign outer-coupling heuristic of
+\Cref{sec:wu_converge}, and the written field is the converged state.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{figs/wu/pass_c_psi_all_levels.png}
   \caption[Pass C all levels]{\textbf{Step 06 / Pass C.} Total balanced
-  streamfunction at all ten pressure levels, showing the equivalent-
-  barotropic vertical structure of the blocking circulation.}
+  streamfunction at all nine pressure levels, showing the
+  equivalent-barotropic vertical structure of the blocking circulation.}
   \label{fig:wu_passc_all}
 \end{figure}
 
 \section{Step 07 --- Pass D: Piecewise Perturbation Inversion (BALP)}
 \label{sec:step07}
 
-Step~07 runs \texttt{qinvertp21} (BALP), which partitions $\dq$ into the
-three vertical pieces of \Cref{sec:wu_passes} and inverts each to a
-perturbation streamfunction $\psi'$ (\texttt{event\_pert.out}).  Piece~3
-(the upper-tropospheric piece, $600$--$250$\,hPa) carries the dominant
-blocking signal.
+Step~07 runs \texttt{qinvertp21} (BALP), partitioning $\dq$ into the
+\textbf{surface}, \textbf{lower} and \textbf{upper} pieces
+(\Cref{sec:wu_passes}) and inverting each to its perturbation
+streamfunction $\psi'$.  All three report \texttt{TOTAL CONVERGENCE}.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{figs/wu/pass_d_psi_3pieces_250hpa.png}
-  \caption[Pass D three pieces]{\textbf{Step 07 / Pass D.}
-  $250$\,hPa perturbation streamfunction $\psi'$ induced by each of the
-  three PV pieces.  Piece~3 (upper) dominates the upper-level response.}
+  \caption[Pass D three pieces]{\textbf{Step 07 / Pass D.} $250$\,hPa
+  perturbation streamfunction $\psi'$ induced by each piece:
+  \textbf{(a)} surface ($1000$\,hPa boundary $\theta$),
+  \textbf{(b)} lower ($850$--$700$\,hPa PV),
+  \textbf{(c)} upper ($500$--$200$\,hPa PV $+$ $100$\,hPa top $\theta$).
+  The upper piece dominates the jet-level response; the surface piece is
+  a broad, predominantly cyclonic ($\psi'<0$) response to the net-warm
+  surface $\theta'$.}
   \label{fig:wu_passd_3}
 \end{figure}
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.82\textwidth]{figs/wu/pass_d_piece3_noise.png}
-  \caption[Piece 3 small-scale noise]{\textbf{Step 07.} Small-scale
-  noise in the raw piece-3 field, motivating the light Gaussian
-  smoothing ($\sigma=1.5$) applied to piece~3 before plotting the Fig.~8
-  diagnostic.}
-  \label{fig:wu_passd_noise}
-\end{figure}
-
-\section{Step 08 --- Parse Outputs and ERA5 Ertel PV}
+\section{Step 08 --- Wu \texorpdfstring{$Q$}{Q} vs ERA5 Ertel PV}
 \label{sec:step08}
 
-Because Wu's internal $Q$ is in opaque solver units ($\sim\!600\times$
-PVU), Step~08 computes the \emph{true} Ertel PV from the ERA5
-$T,u,v$ fields in physical PVU,
-\begin{equation}
-\mathrm{PV} = -g\,(\zeta+f)\,\frac{\partial\theta}{\partial p},
-\label{eq:wu_ertel_pv}
-\end{equation}
-for use as PV-anomaly contours and as the PV field advected in Step~09.
-The side-by-side comparison quantifies the $\approx\!600\times$ scaling
-between Wu's $Q$ and physical PV.
+Step~08 parses all Fortran outputs, converts Wu $Q$ to SI by the exact
+$10^{-8}$ constant (\Cref{chap:wu_coeffs}), and computes the induced
+winds and PV advection, writing \texttt{piecewise\_psi.nc} and
+\texttt{pv\_advection.nc} (all SI).
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{figs/wu/wu_vs_era5_pv_250hpa.png}
-  \caption[Wu Q vs ERA5 PV]{\textbf{Step 08.} $250$\,hPa Wu internal
-  $Q$ (left) versus ERA5 Ertel PV in PVU (right).  The spatial patterns
-  match; the amplitudes differ by the solver-internal scaling factor.}
+  \includegraphics[width=0.85\textwidth]{figs/wu/pv_comparison_250hPa.png}
+  \caption[Wu vs ERA5 PV]{\textbf{Step 08.} Wu $Q\times10^{-8}$ versus
+  ERA5 native Ertel PV at $250$\,hPa.  After the raw-$T$ fix the median
+  ratio is $1.00$ ($\corr=0.995$); no empirical scaling is used.}
   \label{fig:wu_vs_era5}
 \end{figure}
 
-\section{Step 09 --- PV Advection by the Induced Winds}
-\label{sec:step09}
-
-Step~09 forms the central Davis-Fig.~8 quantity: the $250$\,hPa
-advection of total ERA5 PV by the piecewise-induced winds,
-\begin{equation}
-\mathrm{PVadv} = -\Bigl(u'\,\frac{\partial q}{\partial x}
-                       + v'\,\frac{\partial q}{\partial y}\Bigr)\times 86400
-                 \quad [\text{PVU\,day}^{-1}],
-\label{eq:wu_pvadv}
-\end{equation}
-where $(u',v')$ are the winds induced by each PV piece (Step~07/08) and
-$q$ is the \emph{total} ERA5 PV (not Wu's $Q$).  The sign indicates
-whether a piece's circulation advects PV cyclonically ($+$) or
-anticyclonically ($-$) --- the mechanism by which the pieces sustain the
-block.
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\textwidth]{figs/wu/pv_advection_all_pieces.png}
-  \caption[PV advection per piece]{\textbf{Step 09.} $250$\,hPa PV
-  advection by the winds induced by each of the three PV pieces.}
-  \label{fig:wu_pvadv}
-\end{figure}
-
-\section{Step 10 --- Fig.~8 Replica (the Benchmark Result)}
+\section{Step 10 --- Fig.~8 Replica (PV Advection)}
 \label{sec:step10}
 
-Step~10 assembles the three-panel Davis 2022 Fig.~8 replica.  Each
-panel (one per PV piece) overlays:
-\begin{itemize}\setlength\itemsep{0pt}
-  \item \textbf{filled colour:} $250$\,hPa PV advection
-        (\cref{eq:wu_pvadv}), per-panel auto-scaled;
-  \item \textbf{black contours:} total $250$\,hPa PV anomaly
-        (solid positive, dashed negative);
-  \item \textbf{arrows:} induced wind vectors (capped at $40$\,m\,s$^{-1}$).
-\end{itemize}
-Piece~3 receives $\sigma=1.5$ Gaussian smoothing and a wind cap to tame
-the small-scale noise of \Cref{fig:wu_passd_noise}.
-
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{figs/wu/fig8_replica.png}
-  \caption[Davis 2022 Fig.~8 replica]{\textbf{Step 10 --- the
-  benchmark.} Three-panel replica of Davis et~al.\ (2022) Fig.~8 for the
-  2025-01-08 California blocking event: PV advection (fill), PV anomaly
-  (contours) and induced winds (arrows) for each PV piece.  This is the
-  result the Python SH port (Part~II) aims to reproduce.}
+  \includegraphics[width=0.92\textwidth]{figs/wu/fig8_replica.png}
+  \caption[Davis 2022 Fig.~8 replica]{\textbf{Step 10.} Three-panel
+  Davis-style PV-advection diagnostic, one panel per piece (surface /
+  lower / upper): $250$\,hPa PV advection by the induced winds (fill),
+  total PV anomaly (contours) and induced wind vectors (arrows).}
   \label{fig:wu_fig8}
 \end{figure}
 
-\begin{keybox}[Benchmark status]
-The Wu Fortran pipeline runs end-to-end and reproduces the Davis 2022
-Fig.~8 structure.  It is the reference against which the SH BALNC port
-of \Cref{chap:wu_balnc} is measured; at present the SH port reproduces
-the inversion \emph{mathematics} but its total-balance pass does not yet
-converge (\Cref{sec:wu_open}).
-\end{keybox}
+\section{Step 11 --- Cross-Sections and 3-D Structure}
+\label{sec:step11}
 
-\section{SI Output Convention (adopted 2026-06-03)}
-\label{sec:wu_si_output}
+Step~11 produces the latitude/longitude--pressure cross-sections and a
+3-D ``vertical structure'' view, plus the linear-closure check.
 
-The Fortran solvers internally non-dimensionalise using
-$H_{\text{nd}}=H_{\text{phys}}/H_{\text{ND}}$ and
-$\psi_{\text{nd}}=\psi_{\text{file}}/H_{\text{ND}}$ (where
-$\psi_{\text{file}}$ is in units of $10^{5}$\,m$^{2}$\,s$^{-1}$ per
-numeric, and $H_{\text{ND}}=\mathrm{DPI}\cdot\mathrm{THO}/g$), then
-re-dimensionalise on output so that \textbf{output units = input
-units}.  The Fortran-written ASCII files therefore contain:
-\begin{itemize}\setlength\itemsep{0pt}
-  \item $H$ in \emph{metres} (geopotential height $z$);
-  \item $\psi$ in \emph{per-$10^{5}$\,m$^{2}$\,s$^{-1}$} (each numeric
-        value $\times 10^{5}$ gives m$^{2}$\,s$^{-1}$);
-  \item $Q$ (Wu PV) in proprietary pseudo-PVU (ratio $\approx209\times$
-        ERA5 PVU, from the constant
-        $\mathrm{COEF}=10^{2}\!\cdot\!10^{6}\!\cdot\!g\!\cdot\!\kappa\!\cdot\!c_{p}^{3.5}/p_{0}$
-        in \texttt{pvpialln}).
-\end{itemize}
-\noindent To make all \texttt{.nc} outputs directly comparable with
-ERA5, the Python parsing layer (Steps~08--11) applies these conversions:
-\begin{align}
-  \psi\;[\text{m}^{2}\,\text{s}^{-1}] &=
-     \psi_{\text{file}} \times 10^{5}, \\
-  \Phi\;[\text{m}^{2}\,\text{s}^{-2}] &=
-     H_{\text{file}}\;[\text{m}] \times g, \\
-  \text{PV}\;[\text{K}\,\text{m}^{2}\,\text{kg}^{-1}\,\text{s}^{-1}] &=
-     \text{Ertel PV computed in native SI (no $\times10^{6}$ PVU
-     conversion)}.
-\end{align}
-The ERA5 $30$-year climatological PV is read in native SI
-(K\,m$^{2}$\,kg$^{-1}$\,s$^{-1}$) and all advection tendencies are
-stored in SI\,s$^{-1}$ (rather than PVU\,day$^{-1}$).  For readability,
-figures label colour bars in practical units (PVU, PVU\,day$^{-1}$)
-after scaling internally.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figs/wu/xsection_vinduced_3panel.png}
+  \caption[Induced-wind cross-section]{\textbf{Step 11.} Zonal--vertical
+  cross-section at $34.5^\circ$N of the meridional wind $v'$ induced by
+  each piece, with each piece's \emph{own} source overlaid (interior PV
+  contours; boundary-$\theta$ pieces labelled).  The \textbf{upper} piece
+  peaks aloft ($\sim$250\,hPa, $\pm$50\,m\,s$^{-1}$); the \textbf{surface}
+  piece is surface-trapped (peaks at 1000\,hPa, decaying upward) ---
+  exactly the Bretherton boundary response.}
+  \label{fig:wu_xsec}
+\end{figure}
 
-\begin{warnbox}[Pass D DPI fix (2026-06-03)]
-\texttt{qinvertp21\_94.f} line~118 previously hardcoded
-$\mathrm{DPI}=50$ (appropriate for $N_{L}=10$ levels) instead of
-computing $\mathrm{DPI}=500/N_{L}=62.5$ (the correct value for the
-$N_{L}=8$ configuration).  This caused a mild inconsistency in the
-non-dimensional PV weighting ($Q_{\text{const}}$, $\mathrm{PI}(k)$,
-$\mathrm{PIF}(k)$) between Passes~A/C and Pass~D.  The line has been
-changed to \texttt{DPI=500./FLOAT(NL)} and the piecewise solver
-recompiled.  The effect on piecewise $\psi$ and $H$ is small
-($\lesssim$ few~\%) but ensures physical consistency.
-\end{warnbox}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figs/wu/xsection_pv_psi_4panel.png}
+  \caption[PV and piece-$\psi'$ cross-sections]{\textbf{Step 11.}
+  Longitude--pressure ($x$--$p$) cross-sections at the block latitude
+  ($31.5^\circ$N; dashed line $=$ block longitude $222^\circ$E):
+  \textbf{(a)} total PV anomaly $q'$; \textbf{(b--d)} $\psi'$ induced by
+  the surface, lower and upper pieces (blue $=$ cyclonic $\psi'<0$).  The
+  PV anomaly is concentrated at upper levels (panel a); the surface
+  boundary level carries no interior PV --- the surface heating is the
+  boundary $\theta$ inverted in panel (b), a broad predominantly cyclonic
+  response.  The upper piece (d) dominates the amplitude.}
+  \label{fig:wu_3d}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{figs/wu/closure_check.png}
+  \caption[Linear closure check]{\textbf{Step 11.} Linear-closure check:
+  the sum of the three piecewise $\psi'$ against a single all-levels
+  inversion.  On the 9-level (top-100) grid the agreement is moderate
+  ($R^2\!\approx\!0.44$ at 250\,hPa) --- a real grid effect, not a solver
+  error (\Cref{sec:wu_converge}).}
+  \label{fig:wu_closure}
+\end{figure}

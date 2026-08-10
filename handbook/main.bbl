@@ -1,20 +1,14 @@
 \begin{thebibliography}{1}
 
-\bibitem{Baker2005LGMRES}
-A.~H. Baker, E.~R. Jessup, and T.~Manteuffel.
-\newblock A technique for accelerating the convergence of restarted gmres.
-\newblock {\em SIAM J. Matrix Anal. Appl.}, 26:962--984, 2005.
+\bibitem{Davis1992}
+C.~A. Davis and K.~A. Emanuel.
+\newblock Potential vorticity diagnostics of cyclogenesis.
+\newblock {\em Monthly Weather Review}, 119:1929--1953, 1991.
 
 \bibitem{HoskinsMcIntyreRobertson1985}
 B.~J. Hoskins, M.~E. McIntyre, and A.~W. Robertson.
 \newblock On the use and significance of isentropic potential vorticity maps.
 \newblock {\em Quarterly Journal of the Royal Meteorological Society},
   111(470):877--946, 1985.
-
-\bibitem{Saad1993LGMRES}
-Y.~Saad and M.~H. Schultz.
-\newblock Gmres: A generalized minimal residual algorithm for solving
-  nonsymmetric linear systems.
-\newblock {\em SIAM J. Sci. Stat. Comput.}, 7:856--869, 1986.
 
 \end{thebibliography}

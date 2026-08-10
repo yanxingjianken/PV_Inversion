@@ -109,30 +109,32 @@ cancels with the $1/p$ from the chain rule.
   implements this general form.
 \end{keybox}
 
-\section{The Residual ~3.5$\times$ Factor}
+\section{Agreement with ERA5 (after the raw-$T$ fix)}
 
-Dividing Wu Q by $10^{8}$ converts it to \emph{genuine SI units}
-(K\,m$^{2}$\,kg$^{-1}$\,s$^{-1}$).  The resulting field, when compared
-to ERA5's native Ertel PV, shows a spatially-varying residual factor of
-$\sim$2--4$\times$ (median $\sim$3.5$\times$).  This residual is
-\emph{physical}, not a units problem:
+Dividing Wu $Q$ by $10^{8}$ converts it to \emph{genuine SI units}
+(K\,m$^{2}$\,kg$^{-1}$\,s$^{-1}$).  Once the input bug was fixed --- the
+grid writer now feeds \texttt{pvpialln} \textbf{raw temperature $T$}, not
+$\theta$, so the Exner conversion is applied exactly once --- the
+converted field agrees with ERA5's native Ertel PV essentially one to
+one.  At 250\,hPa the current pipeline reports
+\begin{equation}
+\text{median ratio } \frac{Q_{\text{Wu}}\times10^{-8}}{\text{PV}_{\text{ERA5}}} = 1.00,
+\qquad \text{slope} = 0.99,\qquad \corr = 0.995 .
+\end{equation}
 
-\begin{itemize}
-  \item Wu uses a 5-point finite-difference Laplacian on a
-        $1.5^{\circ}$ grid; ERA5 computes PV from its native spectral
-        representation.
-  \item Wu computes $\partial\theta/\partial\Pi$ from 3-point
-        centred differences on 8 unevenly-spaced $\sigma$-levels;
-        ERA5 has 137 model levels.
-  \item The static stability $\partial\theta/\partial p$ is sensitive
-        to vertical resolution; coarse differencing systematically
-        underestimates it by $\sim$2--3$\times$.
-\end{itemize}
+\begin{warnbox}[History: the spurious 3.5x residual]
+An earlier version fed \emph{$\theta$} into \texttt{pvpialln}, which then
+applied the Exner factor a \emph{second} time.  This double conversion
+inflated the static stability $\partial\theta/\partial\Pi$ and hence $Q$
+by a level-dependent $\sim$2--4$\times$ (median $\sim$3.5$\times$), and
+was masked at the time by an ad-hoc \texttt{STAB\_SCALE}$\approx$0.3.
+Both the double conversion and the fudge factor are gone; the residual
+factor is now $\approx 1$.  No empirical scaling is applied --- only the
+analytic $10^{-8}$.
+\end{warnbox}
 
-The median ratio of $Q_{\text{Wu}}\!\times\!10^{-8}$ to ERA5 PV can
-be reported as a diagnostic of the discretisation bias, but it must
-\emph{not} be used to scale the Wu PV field.  The correct conversion
-is the analytic $10^{-8}$.
+\noindent (Equivalently, since $\mathrm{PVU}=10^{-6}$\,SI, the Wu scalar
+is $\approx 100\times$ a PVU value: $\mathrm{PVU}=Q_{\text{Wu}}\times10^{-2}$.)
 
 \section{Implementation in the Pipeline}
 
@@ -151,7 +153,7 @@ The $c(p) = 10^{-8}$ constant is also documented in
 \texttt{config.py} section~7 alongside the full Wu non-dimensional
 scale set (DPI, LL, FF, THO, HND, QCONST, PI\_WU, PIF, BB/BH/BL).
 
-\begin{warnbox}[COEF uses $g=9.81$, not $g=9.80665$]
+\begin{warnbox}[COEF uses Fortran g=9.81]
 The Wu Fortran hardcodes $g=9.81$ (line 460), while the standard
 SI value is $g=9.80665$\,m\,s$^{-2}$.  The Python coefficients
 match the Fortran's 9.81 for exact numeric consistency.  The
