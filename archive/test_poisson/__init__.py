@@ -1,1 +1,0 @@
-"""test_poisson — Poisson/Helmholtz solver benchmarks for PV inversion."""

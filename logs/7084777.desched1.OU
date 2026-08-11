@@ -1,0 +1,51 @@
+[2026-08-10T16:42:28-06:00] host=dec2447 dataset=cesm6h date=1995-01-18T06 out=/glade/work/kenyan/pv_inversion_isentropic/wu_cesm/steps/run_cesm6h
+/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py:239: RuntimeWarning: helmholtz_sh: harmonic residual 9.56e-02 exceeds tol 1.00e-03
+  d = helmholtz_sh(U[k], V[k], lat, lon)
+/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py:239: RuntimeWarning: helmholtz_sh: harmonic residual 9.40e-02 exceeds tol 1.00e-03
+  d = helmholtz_sh(U[k], V[k], lat, lon)
+/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py:239: RuntimeWarning: helmholtz_sh: harmonic residual 9.61e-02 exceeds tol 1.00e-03
+  d = helmholtz_sh(U[k], V[k], lat, lon)
+/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py:239: RuntimeWarning: helmholtz_sh: harmonic residual 9.15e-02 exceeds tol 1.00e-03
+  d = helmholtz_sh(U[k], V[k], lat, lon)
+/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py:239: RuntimeWarning: helmholtz_sh: harmonic residual 1.02e-01 exceeds tol 1.00e-03
+  d = helmholtz_sh(U[k], V[k], lat, lon)
+/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py:239: RuntimeWarning: helmholtz_sh: harmonic residual 1.27e-01 exceeds tol 1.00e-03
+  d = helmholtz_sh(U[k], V[k], lat, lon)
+/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py:239: RuntimeWarning: helmholtz_sh: harmonic residual 9.35e-02 exceeds tol 1.00e-03
+  d = helmholtz_sh(U[k], V[k], lat, lon)
+/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py:239: RuntimeWarning: helmholtz_sh: harmonic residual 9.57e-02 exceeds tol 1.00e-03
+  d = helmholtz_sh(U[k], V[k], lat, lon)
+/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py:239: RuntimeWarning: helmholtz_sh: harmonic residual 9.43e-02 exceeds tol 1.00e-03
+  d = helmholtz_sh(U[k], V[k], lat, lon)
+/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py:239: RuntimeWarning: helmholtz_sh: harmonic residual 1.16e-01 exceeds tol 1.00e-03
+  d = helmholtz_sh(U[k], V[k], lat, lon)
+/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py:239: RuntimeWarning: helmholtz_sh: harmonic residual 1.12e-01 exceeds tol 1.00e-03
+  d = helmholtz_sh(U[k], V[k], lat, lon)
+{
+ "dataset": "cesm6h",
+ "date": "1995-01-18T06",
+ "member": 91,
+ "step": "done",
+ "updated": "2026-08-10T16:50:02",
+ "mean_samples": 31,
+ "elapsed_s": 451,
+ "mask_frac": 0.1566840277777778,
+ "r2_closure": 0.7175489054861226,
+ "rms_u_obs": 10.411963384943714,
+ "rms_u_sum": 18.351945989185786,
+ "rms_u_by_piece": {
+  "surface": 1.9029715228462114,
+  "lower": 2.988396863525864,
+  "upper_p": 12.188858305252314,
+  "upper_e": 18.68790598643485
+ },
+ "seed": [
+  1,
+  159
+ ]
+}
+
+real	7m34.183s
+user	6m58.898s
+sys	0m2.412s
+[2026-08-10T16:50:02-06:00] done

@@ -42,7 +42,7 @@ data/figs/*.pdf
 /*.png
 
 # Compiled Fortran in root fortran/ (moved to wu/fortran/)
-fortran/
+/fortran/
 
 # SH-track artefacts (Phase 6, local A/B only — do NOT commit)
 data/sh_*/

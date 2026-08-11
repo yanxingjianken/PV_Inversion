@@ -1,0 +1,18 @@
+#!/bin/bash
+#PBS -N ppvi1evt
+#PBS -A UMIT0082
+#PBS -q develop
+#PBS -l walltime=02:00:00
+#PBS -l select=1:ncpus=4:mem=48gb:ompthreads=1
+#PBS -M x_yan@mit.edu
+#PBS -j oe
+#PBS -o /glade/work/kenyan/pv_inversion_isentropic/wu_cesm/
+set -euo pipefail
+export TMPDIR=/glade/derecho/scratch/kenyan/tmp
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMP_NUM_THREADS=1
+export MPLBACKEND=Agg
+cd /glade/work/kenyan/pv_inversion_isentropic/wu_cesm
+echo "[$(date -Is)] host=$(hostname)"
+time /glade/work/kenyan/conda-envs/pvtend_env/bin/python test_one_case_derecho.py
+echo "[$(date -Is)] done"

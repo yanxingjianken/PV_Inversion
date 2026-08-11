@@ -1,0 +1,14 @@
+[2026-08-10T15:25:11-06:00] host=dec1329 dataset=era5 date=2015-01-05T06 out=/glade/work/kenyan/pv_inversion_isentropic/wu_era/steps/run_era5
+Traceback (most recent call last):
+  File "/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py", line 246, in <module>
+    main()
+  File "/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py", line 181, in main
+    res = invert_piecewise(
+          ^^^^^^^^^^^^^^^^^
+  File "/glade/work/kenyan/pvtend/src/pvtend/ppvi/solver.py", line 327, in invert_piecewise
+    raise ValueError(
+ValueError: qp_anoms['upper_p'] has shape (9, 75, 181), expected (75, 181, 9)
+
+real	18m38.151s
+user	16m14.874s
+sys	0m52.644s

@@ -1,0 +1,27 @@
+#!/bin/bash
+# One PPVI pipeline run (5 steps, 5 PNGs) for one dataset+event.
+# Submit with -v DATASET=...,DATE=...,CLAT=...,CLON=...,MEMBER=...,OUT=...
+#PBS -N ppvi
+#PBS -A UMIT0082
+#PBS -q develop
+#PBS -l walltime=05:30:00
+#PBS -l select=1:ncpus=4:mem=64gb:ompthreads=1
+#PBS -M x_yan@mit.edu
+#PBS -j oe
+#PBS -o /glade/work/kenyan/pv_inversion_isentropic/logs/
+set -euo pipefail
+export TMPDIR=/glade/derecho/scratch/kenyan/tmp
+mkdir -p "$TMPDIR" /glade/work/kenyan/pv_inversion_isentropic/logs
+export HDF5_USE_FILE_LOCKING=FALSE OMP_NUM_THREADS=1 MPLBACKEND=Agg
+
+SH=/glade/work/kenyan/pv_inversion_isentropic/shared_steps
+PY=/glade/work/kenyan/conda-envs/pvtend_env/bin/python
+
+echo "[$(date -Is)] host=$(hostname) dataset=${DATASET} date=${DATE} out=${OUT}"
+mkdir -p "${OUT}"
+time "$PY" "${SH}/ppvi_pipeline.py" \
+    --dataset "${DATASET}" --date "${DATE}" \
+    --clat "${CLAT}" --clon "${CLON}" \
+    ${MEMBER:+--member ${MEMBER}} \
+    --out "${OUT}"
+echo "[$(date -Is)] done"

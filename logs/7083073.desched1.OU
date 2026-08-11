@@ -1,0 +1,14 @@
+[2026-08-10T15:25:11-06:00] host=dec1329 dataset=cesmday date=2011-01-12T00 out=/glade/work/kenyan/pv_inversion_isentropic/wu_cesm/steps/run_cesmday
+Traceback (most recent call last):
+  File "/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py", line 246, in <module>
+    main()
+  File "/glade/work/kenyan/pv_inversion_isentropic/shared_steps/ppvi_pipeline.py", line 181, in main
+    res = invert_piecewise(
+          ^^^^^^^^^^^^^^^^^
+  File "/glade/work/kenyan/pvtend/src/pvtend/ppvi/solver.py", line 327, in invert_piecewise
+    raise ValueError(
+ValueError: qp_anoms['upper_p'] has shape (9, 80, 145), expected (80, 145, 9)
+
+real	8m31.047s
+user	7m44.416s
+sys	0m2.484s
