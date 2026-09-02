@@ -1,0 +1,3 @@
+50 events, 50 workers
+  50/50  0.7 events/min  {'ok': 47, 'unconverged': 3}
+done in 69.5 min: {'ok': 47, 'unconverged': 3}

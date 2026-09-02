@@ -1,0 +1,20 @@
+{
+ "era5_blocking": {
+  "lat": 43.5,
+  "lon": 226.5,
+  "time": "2025-01-08T00:00:00",
+  "note": "centre = 500 hPa height anomaly maximum over the eastern Pacific, 40-60 N, 200-245 E; the ridge is broad and tilted, with a second lobe of similar amplitude over western Canada"
+ },
+ "cesm_midlatitude": {
+  "lat": 42.430546,
+  "lon": 37.784161,
+  "time": "1985-02-25T18:00:00",
+  "track": "m091_t00003"
+ },
+ "cesm_greenland": {
+  "lat": 78.595716,
+  "lon": 295.730692,
+  "time": "2002-01-06T12:00:00",
+  "track": "m100_t00564"
+ }
+}

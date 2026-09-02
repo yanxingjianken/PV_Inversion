@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+outputs/
+*.egg-info/
+
+# Experiment output.  Derived: the catalogue and the code reproduce it, and every
+# rerun is another hundred and thirty megabytes that git would keep forever.  The
+# sample events under data/ are inputs and stay tracked.
+examples/*/npz/
+examples/*/npz_*/
+examples/*/figures/*.npz
+examples/*/fields.npz

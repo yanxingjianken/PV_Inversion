@@ -1,0 +1,5 @@
+error    libmamba Could not set lock (Resource temporarily unavailable)
+warning  libmamba Cannot lock '/home/x_yan/.cache/mamba/proc'
+    Waiting for other mamba process to finish
+12 events, 12 workers
+Interrupted system call ; error code 4

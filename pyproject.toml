@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pvinv-sph"
+version = "0.1.0"
+description = "Global spherical-harmonic piecewise potential-vorticity inversion (Davis & Emanuel 1991) valid across the poles"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "threadpoolctl",
+    "xarray",
+    "netCDF4",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+plot = ["matplotlib", "cartopy"]
+
+[project.scripts]
+pvinv-sph = "pvinv_sph.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error::RuntimeWarning"]

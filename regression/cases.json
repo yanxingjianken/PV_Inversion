@@ -1,0 +1,57 @@
+[
+ {
+  "case": "C2",
+  "member": "m96",
+  "time": "1993-12-05T12:00:00",
+  "lat": 45.805,
+  "lon": 176.176,
+  "state_path": "/net/flood/data2/users/x_yan/cesm-blocking/cesm_6hourly/cesm2_lens2_wu9_nh/lens2_smbb_m96_1993_plev.nc",
+  "state_index": 1354,
+  "clim_path": "/net/flood/data2/users/x_yan/cesm-blocking/cesm_6hourly/clim/LENS2_smbb91_100_wu9_clim_6hourly_1985_2014.nc",
+  "clim_index": 1354
+ },
+ {
+  "case": "C3",
+  "member": "m95",
+  "time": "1996-01-02T12:00:00",
+  "lat": 50.076,
+  "lon": 183.792,
+  "state_path": "/net/flood/data2/users/x_yan/cesm-blocking/cesm_6hourly/cesm2_lens2_wu9_nh/lens2_smbb_m95_1996_plev.nc",
+  "state_index": 6,
+  "clim_path": "/net/flood/data2/users/x_yan/cesm-blocking/cesm_6hourly/clim/LENS2_smbb91_100_wu9_clim_6hourly_1985_2014.nc",
+  "clim_index": 6
+ },
+ {
+  "case": "C4",
+  "member": "m98",
+  "time": "2011-01-06T00:00:00",
+  "lat": 41.727,
+  "lon": 175.73,
+  "state_path": "/net/flood/data2/users/x_yan/cesm-blocking/cesm_6hourly/cesm2_lens2_wu9_nh/lens2_smbb_m98_2011_plev.nc",
+  "state_index": 20,
+  "clim_path": "/net/flood/data2/users/x_yan/cesm-blocking/cesm_6hourly/clim/LENS2_smbb91_100_wu9_clim_6hourly_1985_2014.nc",
+  "clim_index": 20
+ },
+ {
+  "case": "C5",
+  "member": "m91",
+  "time": "2005-12-10T12:00:00",
+  "lat": 58.502,
+  "lon": 15.08,
+  "state_path": "/net/flood/data2/users/x_yan/cesm-blocking/cesm_6hourly/cesm2_lens2_wu9_nh/lens2_smbb_m91_2005_plev.nc",
+  "state_index": 1374,
+  "clim_path": "/net/flood/data2/users/x_yan/cesm-blocking/cesm_6hourly/clim/LENS2_smbb91_100_wu9_clim_6hourly_1985_2014.nc",
+  "clim_index": 1374
+ },
+ {
+  "case": "m095_t00231",
+  "member": "m95",
+  "time": "1992-02-18T12:00:00",
+  "lat": 53.303,
+  "lon": 289.903,
+  "state_path": "/net/flood/data2/users/x_yan/cesm-blocking/cesm_6hourly/cesm2_lens2_wu9_nh/lens2_smbb_m95_1992_plev.nc",
+  "state_index": 194,
+  "clim_path": "/net/flood/data2/users/x_yan/cesm-blocking/cesm_6hourly/clim/LENS2_smbb91_100_wu9_clim_6hourly_1985_2014.nc",
+  "clim_index": 194
+ }
+]
