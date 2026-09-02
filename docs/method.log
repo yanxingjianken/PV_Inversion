@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex 2026.1.31)  2 SEP 2026 14:07
+This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex 2026.1.31)  2 SEP 2026 14:44
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -171,6 +171,16 @@ Package: array 2021/10/04 v2.5f Tabular extension package (FMi)
 \backup@length=\skip53
 \ar@cellbox=\box53
 )
+(/usr/share/texlive/texmf-dist/tex/latex/tools/tabularx.sty
+Package: tabularx 2020/01/15 v2.11c `tabularx' package (DPC)
+\TX@col@width=\dimen173
+\TX@old@table=\dimen174
+\TX@old@col=\dimen175
+\TX@target=\dimen176
+\TX@delta=\dimen177
+\TX@cols=\count278
+\TX@ftn=\toks24
+)
 (/usr/share/texlive/texmf-dist/tex/latex/hyperref/hyperref.sty
 Package: hyperref 2021-06-07 v7.00m Hypertext links for LaTeX
 
@@ -209,9 +219,9 @@ Package: auxhook 2019-12-17 v1.6 Hooks for auxiliary files (HO)
 (/usr/share/texlive/texmf-dist/tex/latex/kvoptions/kvoptions.sty
 Package: kvoptions 2020-10-07 v3.14 Key value format for package options (HO)
 )
-\@linkdim=\dimen173
-\Hy@linkcounter=\count278
-\Hy@pagecounter=\count279
+\@linkdim=\dimen178
+\Hy@linkcounter=\count279
+\Hy@pagecounter=\count280
 
 (/usr/share/texlive/texmf-dist/tex/latex/hyperref/pd1enc.def
 File: pd1enc.def 2021-06-07 v7.00m Hyperref: PDFDocEncoding definition (HO)
@@ -228,7 +238,7 @@ Package: intcalc 2019/12/15 v1.3 Expandable calculations with integers (HO)
 (/usr/share/texlive/texmf-dist/tex/generic/etexcmds/etexcmds.sty
 Package: etexcmds 2019/12/15 v1.7 Avoid name clashes with e-TeX commands (HO)
 )
-\Hy@SavedSpaceFactor=\count280
+\Hy@SavedSpaceFactor=\count281
 
 (/usr/share/texlive/texmf-dist/tex/latex/hyperref/puenc.def
 File: puenc.def 2021-06-07 v7.00m Hyperref: PDF Unicode definition (HO)
@@ -242,14 +252,14 @@ Package hyperref Info: Plain pages OFF on input line 4207.
 Package hyperref Info: Backreferencing OFF on input line 4212.
 Package hyperref Info: Implicit mode ON; LaTeX internals redefined.
 Package hyperref Info: Bookmarks ON on input line 4445.
-\c@Hy@tempcnt=\count281
+\c@Hy@tempcnt=\count282
 
 (/usr/share/texlive/texmf-dist/tex/latex/url/url.sty
 \Urlmuskip=\muskip17
 Package: url 2013/09/16  ver 3.4  Verb mode for urls, etc.
 )
 LaTeX Info: Redefining \url on input line 4804.
-\XeTeXLinkMargin=\dimen174
+\XeTeXLinkMargin=\dimen179
 
 (/usr/share/texlive/texmf-dist/tex/generic/bitset/bitset.sty
 Package: bitset 2019/12/09 v1.3 Handle bit-vector datatype (HO)
@@ -258,9 +268,9 @@ Package: bitset 2019/12/09 v1.3 Handle bit-vector datatype (HO)
 Package: bigintcalc 2019/12/15 v1.5 Expandable calculations on big integers (HO
 )
 ))
-\Fld@menulength=\count282
-\Field@Width=\dimen175
-\Fld@charsize=\dimen176
+\Fld@menulength=\count283
+\Field@Width=\dimen180
+\Fld@charsize=\dimen181
 Package hyperref Info: Hyper figures OFF on input line 6076.
 Package hyperref Info: Link nesting OFF on input line 6081.
 Package hyperref Info: Hyper index ON on input line 6084.
@@ -275,9 +285,9 @@ LaTeX Info: Redefining \pageref on input line 6150.
 Package: atbegshi-ltx 2021/01/10 v1.0c Emulation of the original atbegshi
 package with kernel methods
 )
-\Hy@abspage=\count283
-\c@Item=\count284
-\c@Hfootnote=\count285
+\Hy@abspage=\count284
+\c@Item=\count285
+\c@Hfootnote=\count286
 )
 Package hyperref Info: Driver (autodetected): hpdftex.
 
@@ -289,8 +299,8 @@ Package: atveryend-ltx 2020/08/19 v1.0a Emulation of the original atveryend pac
 kage
 with kernel methods
 )
-\Fld@listcount=\count286
-\c@bookmark@seq@number=\count287
+\Fld@listcount=\count287
+\c@bookmark@seq@number=\count288
 
 (/usr/share/texlive/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
 Package: rerunfilecheck 2019/12/05 v1.9 Rerun checks for auxiliary files (HO)
@@ -303,48 +313,48 @@ Package uniquecounter Info: New unique counter `rerunfilecheck' on input line 2
 )
 \Hy@SectionHShift=\skip54
 )
-Package hyperref Info: Option `colorlinks' set `true' on input line 12.
+Package hyperref Info: Option `colorlinks' set `true' on input line 13.
 
 (/usr/share/texlive/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
 File: l3backend-pdftex.def 2022-01-12 L3 backend support: PDF output (pdfTeX)
-\l__color_backend_stack_int=\count288
+\l__color_backend_stack_int=\count289
 \l__pdf_internal_box=\box54
 )
 (./method.aux)
 \openout1 = `method.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 34.
-LaTeX Font Info:    ... okay on input line 34.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 34.
-LaTeX Font Info:    ... okay on input line 34.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 34.
-LaTeX Font Info:    ... okay on input line 34.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 34.
-LaTeX Font Info:    ... okay on input line 34.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 34.
-LaTeX Font Info:    ... okay on input line 34.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 34.
-LaTeX Font Info:    ... okay on input line 34.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 34.
-LaTeX Font Info:    ... okay on input line 34.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 34.
-LaTeX Font Info:    ... okay on input line 34.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 34.
-LaTeX Font Info:    ... okay on input line 34.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 41.
+LaTeX Font Info:    ... okay on input line 41.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 41.
+LaTeX Font Info:    ... okay on input line 41.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 41.
+LaTeX Font Info:    ... okay on input line 41.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 41.
+LaTeX Font Info:    ... okay on input line 41.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 41.
+LaTeX Font Info:    ... okay on input line 41.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 41.
+LaTeX Font Info:    ... okay on input line 41.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 41.
+LaTeX Font Info:    ... okay on input line 41.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 41.
+LaTeX Font Info:    ... okay on input line 41.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 41.
+LaTeX Font Info:    ... okay on input line 41.
 
 (/usr/share/texlive/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
 [Loading MPS to PDF converter (version 2006.09.02).]
-\scratchcounter=\count289
-\scratchdimen=\dimen177
+\scratchcounter=\count290
+\scratchdimen=\dimen182
 \scratchbox=\box55
-\nofMPsegments=\count290
-\nofMParguments=\count291
-\everyMPshowfont=\toks24
-\MPscratchCnt=\count292
-\MPscratchDim=\dimen178
-\MPnumerator=\count293
-\makeMPintoPDFobject=\count294
-\everyMPtoPDFconversion=\toks25
+\nofMPsegments=\count291
+\nofMParguments=\count292
+\everyMPshowfont=\toks25
+\MPscratchCnt=\count293
+\MPscratchDim=\dimen183
+\MPnumerator=\count294
+\makeMPintoPDFobject=\count295
+\everyMPtoPDFconversion=\toks26
 ) (/usr/share/texlive/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
 Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
 Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 4
@@ -396,7 +406,7 @@ File: color.cfg 2016/01/02 v1.6 sample color configuration
 )
 Package color Info: Driver file: pdftex.def on input line 149.
 )
-Package hyperref Info: Link coloring ON on input line 34.
+Package hyperref Info: Link coloring ON on input line 41.
 
 (/usr/share/texlive/texmf-dist/tex/latex/hyperref/nameref.sty
 Package: nameref 2021-04-02 v2.47 Cross-referencing by name of section
@@ -407,120 +417,131 @@ Package: refcount 2019/12/15 v3.6 Data extraction from label references (HO)
 (/usr/share/texlive/texmf-dist/tex/generic/gettitlestring/gettitlestring.sty
 Package: gettitlestring 2019/12/15 v1.6 Cleanup title references (HO)
 )
-\c@section@level=\count295
+\c@section@level=\count296
 )
-LaTeX Info: Redefining \ref on input line 34.
-LaTeX Info: Redefining \pageref on input line 34.
-LaTeX Info: Redefining \nameref on input line 34.
+LaTeX Info: Redefining \ref on input line 41.
+LaTeX Info: Redefining \pageref on input line 41.
+LaTeX Info: Redefining \nameref on input line 41.
 
 (./method.out) (./method.out)
 \@outlinefile=\write3
 \openout3 = `method.out'.
 
-LaTeX Font Info:    Trying to load font information for U+msa on input line 36.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 43.
 
 
 (/usr/share/texlive/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 36.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 43.
 
 
 (/usr/share/texlive/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
-LaTeX Font Info:    Trying to load font information for T1+cmtt on input line 3
-6.
+LaTeX Font Info:    Trying to load font information for T1+cmtt on input line 4
+3.
 
 (/usr/share/texlive/texmf-dist/tex/latex/base/t1cmtt.fd
 File: t1cmtt.fd 2019/12/16 v2.5j Standard LaTeX font definitions
-) (./method.toc [1
-
-{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}])
+) (./method.toc)
 \tf@toc=\write4
 \openout4 = `method.toc'.
 
- [2] [3]
-<figures/fig01_event.png, id=285, 729.27pt x 315.36pt>
+
+[1
+
+{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}] [2] [3]
+<figures/fig01_event.png, id=121, 729.27pt x 315.36pt>
 File: figures/fig01_event.png Graphic file (type png)
 <use figures/fig01_event.png>
-Package pdftex.def Info: figures/fig01_event.png  used on input line 143.
-(pdftex.def)             Requested size: 460.935pt x 199.32747pt.
- [4 <./figures/fig01_event.png>] [5] [6]
-<figures/fig02_streamfunction.png, id=342, 729.927pt x 299.592pt>
+Package pdftex.def Info: figures/fig01_event.png  used on input line 306.
+(pdftex.def)             Requested size: 391.79755pt x 169.42569pt.
+<figures/fig04_mirror.png, id=123, 1019.664pt x 239.148pt>
+File: figures/fig04_mirror.png Graphic file (type png)
+<use figures/fig04_mirror.png>
+Package pdftex.def Info: figures/fig04_mirror.png  used on input line 315.
+(pdftex.def)             Requested size: 460.935pt x 108.10457pt.
+ [4 <./figures/fig01_event.png>]
+<figures/fig02_streamfunction.png, id=137, 729.927pt x 299.592pt>
 File: figures/fig02_streamfunction.png Graphic file (type png)
 <use figures/fig02_streamfunction.png>
 Package pdftex.def Info: figures/fig02_streamfunction.png  used on input line 3
-36.
-(pdftex.def)             Requested size: 460.935pt x 189.18736pt.
- [7 <./figures/fig02_streamfunction.png>] [8]
-<figures/fig03_pv.png, id=375, 757.521pt x 325.872pt>
+89.
+(pdftex.def)             Requested size: 391.79755pt x 160.81268pt.
+<figures/fig03_pv.png, id=138, 757.521pt x 325.872pt>
 File: figures/fig03_pv.png Graphic file (type png)
 <use figures/fig03_pv.png>
-Package pdftex.def Info: figures/fig03_pv.png  used on input line 467.
-(pdftex.def)             Requested size: 460.935pt x 198.28935pt.
- [9 <./figures/fig03_pv.png>] [10] [11] [12] [13] [14] [15] [16] [17] [18]
-<figures/fig04_mirror.png, id=531, 1019.664pt x 239.148pt>
-File: figures/fig04_mirror.png Graphic file (type png)
-<use figures/fig04_mirror.png>
-Package pdftex.def Info: figures/fig04_mirror.png  used on input line 1222.
-(pdftex.def)             Requested size: 460.935pt x 108.10457pt.
- [19 <./figures/fig04_mirror.png>] [20] [21]
-Underfull \hbox (badness 1264) in paragraph at lines 1429--1438
-[]\T1/cmr/bx/n/10.95 Stopping rule. \T1/cmr/m/n/10.95 The largest geopo-ten-tia
-l in-cre-ment over the in-te-rior grid be-low
- []
-
-[22]
-<figures/fig05_convergence.png, id=565, 694.449pt x 239.148pt>
+Package pdftex.def Info: figures/fig03_pv.png  used on input line 397.
+(pdftex.def)             Requested size: 391.79755pt x 168.54445pt.
+ [5 <./figures/fig04_mirror.png>] [6 <./figures/fig02_streamfunction.png> <./fi
+gures/fig03_pv.png>] [7]
+<figures/fig05_convergence.png, id=177, 694.449pt x 239.148pt>
 File: figures/fig05_convergence.png Graphic file (type png)
 <use figures/fig05_convergence.png>
-Package pdftex.def Info: figures/fig05_convergence.png  used on input line 1548
-.
-(pdftex.def)             Requested size: 460.935pt x 158.73218pt.
- [23]
-<figures/fig06_per_level.png, id=573, 986.814pt x 901.404pt>
+Package pdftex.def Info: figures/fig05_convergence.png  used on input line 546.
+
+(pdftex.def)             Requested size: 414.83868pt x 142.8586pt.
+ [8 <./figures/fig05_convergence.png>]
+<figures/fig06_per_level.png, id=196, 986.814pt x 901.404pt>
 File: figures/fig06_per_level.png Graphic file (type png)
 <use figures/fig06_per_level.png>
-Package pdftex.def Info: figures/fig06_per_level.png  used on input line 1590.
-(pdftex.def)             Requested size: 460.935pt x 421.04663pt.
- [24 <./figures/fig05_convergence.png>] [25 <./figures/fig06_per_level.png>]
-<figures/fig07_groups.png, id=587, 1235.817pt x 307.476pt>
+Package pdftex.def Info: figures/fig06_per_level.png  used on input line 641.
+(pdftex.def)             Requested size: 341.09442pt x 311.57616pt.
+
+[9]
+<figures/fig07_groups.png, id=208, 1235.817pt x 307.476pt>
 File: figures/fig07_groups.png Graphic file (type png)
 <use figures/fig07_groups.png>
-Package pdftex.def Info: figures/fig07_groups.png  used on input line 1633.
+Package pdftex.def Info: figures/fig07_groups.png  used on input line 695.
 (pdftex.def)             Requested size: 460.935pt x 114.67921pt.
- [26 <./figures/fig07_groups.png>]
-<figures/fig08_closure.png, id=598, 1019.007pt x 300.249pt>
+ [10 <./figures/fig06_per_level.png> <./figures/fig07_groups.png>]
+<figures/fig08_closure.png, id=218, 1019.007pt x 300.249pt>
 File: figures/fig08_closure.png Graphic file (type png)
 <use figures/fig08_closure.png>
-Package pdftex.def Info: figures/fig08_closure.png  used on input line 1684.
+Package pdftex.def Info: figures/fig08_closure.png  used on input line 735.
 (pdftex.def)             Requested size: 460.935pt x 135.81174pt.
-<figures/fig09_polar.png, id=601, 1163.547pt x 294.336pt>
+ [11 <./figures/fig08_closure.png>]
+<figures/fig09_polar.png, id=228, 1163.547pt x 294.336pt>
 File: figures/fig09_polar.png Graphic file (type png)
 <use figures/fig09_polar.png>
-Package pdftex.def Info: figures/fig09_polar.png  used on input line 1719.
+Package pdftex.def Info: figures/fig09_polar.png  used on input line 790.
 (pdftex.def)             Requested size: 460.935pt x 116.60052pt.
- [27 <./figures/fig08_closure.png>]
-[28 <./figures/fig09_polar.png>] [29] [30] [31] [32] [33] (./method.aux)
+ [12 <./figures/fig09_polar.png>] [13]
+<../examples/03_composite_comparison/fig1_composite_flow.png, id=258, 1373.13pt
+ x 722.7pt>
+File: ../examples/03_composite_comparison/fig1_composite_flow.png Graphic file 
+(type png)
+<use ../examples/03_composite_comparison/fig1_composite_flow.png>
+Package pdftex.def Info: ../examples/03_composite_comparison/fig1_composite_flo
+w.png  used on input line 922.
+(pdftex.def)             Requested size: 414.83868pt x 218.33347pt.
+<../examples/02_polar_event/polar_cap.png, id=260, 1806.75pt x 766.062pt>
+File: ../examples/02_polar_event/polar_cap.png Graphic file (type png)
+<use ../examples/02_polar_event/polar_cap.png>
+Package pdftex.def Info: ../examples/02_polar_event/polar_cap.png  used on inpu
+t line 944.
+(pdftex.def)             Requested size: 437.88684pt x 185.65875pt.
+ [14 <../examples/03_composite_comparison/fig1_composite_flow.png>] [15 <../exa
+mples/02_polar_event/polar_cap.png>] [16] (./method.aux)
 Package rerunfilecheck Info: File `method.out' has not changed.
-(rerunfilecheck)             Checksum: BC4B8DC87BE808DC544922CE897A7F65;9252.
+(rerunfilecheck)             Checksum: 776EAB9B782C7ABAC76FC80E3DD96EC2;2266.
  ) 
 Here is how much of TeX's memory you used:
- 10635 strings out of 480247
- 162588 string characters out of 5896151
- 459804 words of memory out of 5000000
- 28248 multiletter control sequences out of 15000+600000
+ 10591 strings out of 480247
+ 162808 string characters out of 5896151
+ 466983 words of memory out of 5000000
+ 28280 multiletter control sequences out of 15000+600000
  491290 words of font info for 88 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 60i,11n,63p,491b,473s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 60i,12n,63p,907b,419s stack positions out of 5000i,500n,10000p,200000b,80000s
  </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ectt1000.600
-pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm0800.60
+pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1095.60
 0pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ectt1095.6
-00pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx1200.
-600pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1095
-.600pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecti109
-5.600pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm10
+00pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm0800.
+600pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecti1095
+.600pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx120
+0.600pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm10
 95.600pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx1
 095.600pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx
 1440.600pk> </home/x_yan/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecr
@@ -540,10 +561,10 @@ st/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/share/texlive/texmf-dist/fonts
 ublic/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/
 amsfonts/cm/cmsy7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfont
 s/cm/cmsy8.pfb>
-Output written on method.pdf (33 pages, 2931645 bytes).
+Output written on method.pdf (16 pages, 6038646 bytes).
 PDF statistics:
- 1266 PDF objects out of 1440 (max. 8388607)
- 699 compressed objects within 7 object streams
- 160 named destinations out of 1000 (max. 500000)
- 446 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 851 PDF objects out of 1000 (max. 8388607)
+ 318 compressed objects within 4 object streams
+ 77 named destinations out of 1000 (max. 500000)
+ 152 words of extra memory for PDF output out of 10000 (max. 10000000)
 

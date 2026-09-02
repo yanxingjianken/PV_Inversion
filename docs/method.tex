@@ -7,6 +7,7 @@
 \usepackage[margin=2.4cm]{geometry}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{tabularx}
 \usepackage{hyperref}
 
 \hypersetup{colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue}
@@ -16,18 +17,24 @@
 \newcommand{\py}{\partial_y}
 \newcommand{\dd}[2]{\frac{\partial #1}{\partial #2}}
 \newcommand{\ddd}[2]{\frac{\partial^2 #1}{\partial #2^2}}
-\newcommand{\Pii}{\Pi}
 \newcommand{\lap}{\nabla^2}
 \newcommand{\grad}{\nabla}
 \newcommand{\bvec}[1]{\mathbf{#1}}
 \newcommand{\code}[1]{\texttt{#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
 
 \emergencystretch=3em
 \setlength{\parskip}{0.45em}
 \setlength{\parindent}{0pt}
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.7}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{3}
+\setcounter{totalnumber}{4}
 
 \title{Piecewise potential-vorticity inversion on the sphere\\[2mm]
-\large Method and implementation}
+\large Method, step by step}
 \author{\code{pv\_inversion\_spherical}}
 \date{}
 
@@ -36,326 +43,57 @@
 
 \begin{abstract}
 \noindent
-This document describes what the package computes, the equations it solves, how
-those equations are discretised and solved, and what the approximations cost.
-It is self-contained: everything needed to follow the method is here or in the
-three papers listed at the end.
+This document states the equations the package solves, the steps by which it
+solves them, and how the calculation differs from the limited-area Fortran chain
+that solves the same system. Every number quoted comes from the example runs
+that ship with the package.
 \end{abstract}
 
 \tableofcontents
 
 % =============================================================================
-\section{What the inversion computes}
+\section{What is solved}
 \label{sec:what}
 
-The input is two atmospheric states covering the northern hemisphere on the same
-pressure levels: an \emph{event} and the \emph{climatology} it is to be measured
-against. Each state is geopotential height, temperature, and the two horizontal
-wind components.
-
-The output is a decomposition. The difference between the two states carries
-anomalous potential vorticity in the interior of the atmosphere and anomalous
-potential temperature on its top and bottom boundaries. Those anomalies are the
-\emph{sources}. For each source separately, the method returns the balanced
-geopotential and streamfunction --- and hence the balanced rotational wind ---
-that this source alone induces, with every other source set to its
-climatological value. The pieces sum to the inversion of all the sources at
-once.
-
-With the nine-level set the package uses by default, there are nine sources and
-therefore nine pieces:
-
-\begin{itemize}
-\itemsep0.1em
-\item seven interior potential-vorticity anomalies, one on each of
-      850, 700, 500, 400, 300, 250 and 200~hPa;
-\item one potential-temperature anomaly on the bottom boundary, labelled 1000~hPa;
-\item one potential-temperature anomaly on the top boundary, labelled 100~hPa.
-\end{itemize}
-
-The question this answers is of the form: \emph{of the anomalous rotational wind
-at 250~hPa, how much was induced by the potential vorticity anomaly at each
-level, and how much by the potential temperature anomaly at the ground?} The
-decomposition is the point. A total balanced state, taken alone, says nothing
-about attribution.
-
-Three ideas underlie it.
-
-\textbf{One.} Charney (1955) showed that in the motions of meteorological
-interest the horizontal divergence is small enough that the wind can be written
-as the rotational wind of a streamfunction, and that the divergence equation
-then collapses to a single diagnostic relation between the streamfunction and
-the geopotential. That relation, the nonlinear balance equation, replaces the
-prognostic momentum equations by a constraint (Section~\ref{sec:balance}).
-
-\textbf{Two.} Davis and Emanuel (1991) added the hydrostatic Ertel potential
-vorticity, written on Exner surfaces and with the vertical derivative of the
-total wind replaced by that of the rotational wind. That gives a second relation
-between the same two fields. The two together are a closed system: given the
-potential vorticity in the interior and the potential temperature on the two
-boundaries, the geopotential and the streamfunction are determined
-(Section~\ref{sec:system}).
-
-\textbf{Three.} The system is nonlinear, so the response to a sum of sources is
-not in general the sum of the responses. Davis and Emanuel (1991) removed the
-ambiguity by freezing the coefficients of the operator at the mean plus half the
-perturbation. Davis (1992) named this the \emph{full linear} method, compared it
-against the alternatives, and showed that it is the one whose pieces sum to the
-total by construction (Section~\ref{sec:pieces}).
-
-Everything after that is the sphere. This method inverts on the whole globe in
-spherical harmonics. There is no lateral boundary anywhere, so there is no
-lateral boundary condition to choose and no piece carrying the response to one;
-the poles are ordinary points; and an event centred at 79~N is inverted by
-exactly the same calculation as one at 43~N.
-
-\subsection*{Conventions}
-
-Fields are ordered bottom-up in the vertical (1000~hPa first), latitudes ascend
-from the equator, longitudes ascend from zero. Temperature is supplied as
-temperature, not potential temperature. Everything inside the solver is SI.
-
-\begin{center}
-\begin{tabular}{ll}
-\toprule
-symbol & meaning \\
-\midrule
-$\lambda,\varphi$ & longitude, latitude \\
-$a$ & Earth radius, $6.371\times10^{6}$~m \\
-$\Omega$ & Earth angular velocity, $7.292115\times10^{-5}$~s$^{-1}$ \\
-$f=2\Omega\sin\varphi$ & Coriolis parameter; $f^{*}$ is its floored form (Section~\ref{sec:mirror}) \\
-$p,\;\Pi$ & pressure; Exner function, the vertical coordinate \\
-$\theta$ & potential temperature \\
-$\Phi$ & geopotential \\
-$\psi$ & streamfunction of the rotational wind, $\bvec{V}=\bvec{k}\times\grad\psi$ \\
-$\zeta=\lap\psi$ & relative vorticity \\
-$q$ & Ertel potential vorticity, SI \\
-$\hat q$ & the same, rescaled to the right-hand side of the inversion \\
-$\bar{(\ )}$, $(\ )'$ & climatological mean, anomaly \\
-$(\ )_n$ & the $n$th piece \\
-$\tilde{(\ )}=\bar{(\ )}+\tfrac12(\ )'$ & the state the operator is frozen at \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth]{figures/fig01_event.png}
-\caption{The event: wind speed at 250\,hPa, and the 500\,hPa height anomaly
-against the climatology. The difference between the two states is what is
-decomposed: anomalous potential vorticity in the interior, anomalous potential
-temperature on the top and bottom boundaries.}
-\end{figure}
-
-% =============================================================================
-\section{The vertical coordinate}
-\label{sec:exner}
-
-The vertical coordinate is the Exner function,
+\textbf{Vertical coordinate.} The Exner function,
 \begin{equation}
 \Pi = C_p\left(\frac{p}{p_0}\right)^{\kappa},
 \qquad
 \kappa = \frac{R_d}{C_p} = \frac{2}{7},
 \label{eq:exner}
 \end{equation}
-with $C_p=1004.5$~J~kg$^{-1}$~K$^{-1}$, $R_d=287.0$~J~kg$^{-1}$~K$^{-1}$ and
-$p_0=1000$~hPa. This is the coordinate of Davis and Emanuel (1991, p.~1934) and
-of Davis (1992, p.~1397). Note that $\Pi$ \emph{decreases} upward, and that
-$\Pi=C_p$ exactly at 1000~hPa.
-
-Two things follow from \eqref{eq:exner}, and they are the reason for choosing it.
-
-\textbf{Hydrostatic balance is linear in the potential temperature:}
+with $C_p=1004.5$~J~kg$^{-1}$~K$^{-1}$, $R_d=287.0$~J~kg$^{-1}$~K$^{-1}$,
+$p_0=1000$~hPa. $\Pi$ decreases upward and equals $C_p$ at 1000~hPa. In this
+coordinate hydrostatic balance is linear in the potential temperature, and its
+$\Pi$-derivative is the static stability:
 \begin{equation}
-\dd{\Phi}{\Pi} = -\theta .
+\dd{\Phi}{\Pi} = -\theta ,
+\qquad
+S = -\dd{\theta}{\Pi} = \ddd{\Phi}{\Pi} .
 \label{eq:hydrostatic}
 \end{equation}
-Neither Davis paper displays \eqref{eq:hydrostatic} as a numbered equation. It
-appears in both as the condition on the top and bottom boundaries (Davis and
-Emanuel 1991, p.~1934; Davis 1992, p.~1398), and it is used silently inside the
-potential-vorticity relation, where $\partial\theta/\partial\Pi$ has been
-replaced by $-\partial^2\Phi/\partial\Pi^2$.
 
-\textbf{One vertical operator serves both purposes.} Differentiating
-\eqref{eq:hydrostatic} once gives the static stability,
+\textbf{Horizontal operators.} With $\lambda,\varphi$ longitude and latitude
+and $a=6.371\times10^{6}$~m,
+$\px=(a\cos\varphi)^{-1}\partial_\lambda$, $\py=a^{-1}\partial_\varphi$, and
+for a vector $(F_x,F_y)$ and a scalar $s$
 \begin{equation}
-S \;=\; -\dd{\theta}{\Pi} \;=\; \ddd{\Phi}{\Pi} ,
-\end{equation}
-which is the coefficient multiplying the absolute vorticity in the
-potential-vorticity relation of Section~\ref{sec:pv}. So the same three-point
-second difference in $\Pi$ supplies the stability inside the equation, the
-boundary condition at its ends and, by default, the potential-vorticity source
-itself, which is evaluated from the data with that stencil rather than with an
-independent one (Section~\ref{sec:pv}); they cannot be discretised
-inconsistently because they are the same stencil (Section~\ref{sec:bc}).
-
-\subsection*{The levels}
-
-The default set is nine pressure levels. The two outermost are \emph{not}
-unknowns: they carry boundary potential temperature, and the seven between them
-carry potential vorticity. The boundary values live on the two half levels,
-near 925 and near 140~hPa, and by default they are the hydrostatic differences
-of the geopotential across those half levels,
-\begin{equation}
-\theta_B = -\frac{\Phi_{850}-\Phi_{1000}}{\Pi_{850}-\Pi_{1000}},
+\begin{gathered}
+\grad\cdot\bvec{F} = \px F_x + \py F_y - \frac{\tan\varphi}{a}F_y ,
 \qquad
-\theta_T = -\frac{\Phi_{100}-\Phi_{200}}{\Pi_{100}-\Pi_{200}},
-\label{eq:thetahalf}
+\bvec{k}\cdot\grad\times\bvec{F} = \px F_y - \py F_x + \frac{\tan\varphi}{a}F_x ,\\
+\lap s = \px\px s + \py\py s - \frac{\tan\varphi}{a}\py s .
+\end{gathered}
+\label{eq:ops}
 \end{equation}
-which is \eqref{eq:hydrostatic} evaluated with the same two-point difference
-the operator's ghosts use (Section~\ref{sec:bc}). The layer averages
-$\tfrac12(\theta_{1000}+\theta_{850})$ and $\tfrac12(\theta_{200}+\theta_{100})$
-are the alternative, kept as the \code{data} convention of
-Section~\ref{sec:pv}; for hydrostatically consistent data the two agree to a
-few kelvin. Davis and Emanuel (1991, p.~1936) place the boundaries in the same
-way: their lower boundary temperature is the mean between 1000 and 850~mb,
-their upper boundary value sits near 125~mb, and their potential vorticity is
-carried on the levels in between.
+The wind is the rotational wind of a streamfunction,
+$\bvec{V}=\bvec{k}\times\grad\psi$, so $u=-\py\psi$, $v=\px\psi$ and
+$\zeta=\lap\psi$. The Coriolis parameter that enters the operator is the
+floored, equator-symmetric $f^{*}$ of Step~1.
 
-\begin{center}
-\small
-\begin{tabular}{rrlrr}
-\toprule
-$p$ [hPa] & $\Pi$ [J~kg$^{-1}$~K$^{-1}$] & carries &
-$\delta_k$ [J~kg$^{-1}$~K$^{-1}$] & $p/(g\kappa\Pi)$ \\
-\midrule
-1000 & 1004.5000 & boundary $\theta$ & ---     & ---    \\
- 850 &  958.9234 & interior $q$      & $-48.66$ & 31.63 \\
- 700 &  907.1774 & interior $q$      & $-67.45$ & 27.53 \\
- 500 &  824.0269 & interior $q$      & $-67.02$ & 21.65 \\
- 400 &  773.1305 & interior $q$      & $-55.95$ & 18.46 \\
- 300 &  712.1246 & interior $q$      & $-48.58$ & 15.03 \\
- 250 &  675.9784 & interior $q$      & $-38.95$ & 13.20 \\
- 200 &  634.2263 & interior $q$      & $-77.85$ & 11.25 \\
- 100 &  520.2782 & boundary $\theta$ & ---     & ---    \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Here $\delta_k=\tfrac12(\Pi_{k+1}-\Pi_{k-1})$ is the half-span of the vertical
-stencil at level $k$, negative because $\Pi$ descends; it sets the size of the
-boundary source in Section~\ref{sec:bc}. A ten-level set is also available,
-inserting 150~hPa ($\Pi=584.1810$) between 200 and 100~hPa.
-
-The mesh is strongly stretched --- the span at 200~hPa is twice that at 250~hPa,
-because the level above it is 100~hPa --- and the consequences are stated where
-they bite: the second difference is exact for quadratics in $\Pi$ but only
-formally first-order on a mesh like this one (Section~\ref{sec:discretisation}).
-
-\subsection*{Scaling of the right-hand side}
-
-Everything inside the solver is SI. The potential-vorticity equation is divided
-through by the factor $g\kappa\Pi/p$ that stands in front of it, so the field
-that actually appears on the right-hand side is
-\begin{equation}
-\hat q \;=\; q\,\frac{p}{g\kappa\Pi}
-\;=\; q\left(\frac{p}{p_0}\right)^{1-\kappa}\frac{p_0}{\kappa\,g\,C_p},
-\label{eq:qhat}
-\end{equation}
-whose per-level values are the last column of the table. The whole of the
-non-dimensionalisation is this one factor; no other rescaling is applied
-anywhere.
-
-For plotting, a pseudoheight is convenient:
-\begin{align}
-z &= \frac{p_0}{\rho_0\kappa g}\left[1-\frac{\Pi}{C_p}\right]
- && \text{(Davis and Emanuel 1991, Fig.~5)},\\
-z &= H\left(1-\frac{\Pi}{\Pi_0}\right),\quad H=\frac{C_p\theta_0}{g}
- && \text{(Davis 1992, Fig.~2)}.
-\end{align}
-Both are linear in $\Pi$ and neither enters the calculation.
-
-% =============================================================================
-\section{The streamfunction}
-\label{sec:psi}
-
-Charney's first step is to argue the divergence away. For quasi-geostrophic
-flow, the ratio of the horizontal divergence to one of its component terms is
-the Rossby number and therefore small; where the Rossby number is not small,
-the ratio is instead $V^2/(gH^2\,\partial\ln\theta/\partial z)$, which for
-$H\sim10^4$~m and $\partial\ln\theta/\partial z\sim10^{-5}$~m$^{-1}$ is again
-small, since the gravity-inertia speed is of order 100~m~s$^{-1}$
-(Charney 1955, p.~23). The significant motions of the free atmosphere therefore
-have small horizontal divergence, and the wind may be written through a
-streamfunction,
-\begin{equation}
-\bvec{V} = \bvec{k}\times\grad\psi ,
-\qquad
-\zeta = \lap\psi .
-\end{equation}
-
-Recovering $\psi$ from an observed wind is, on the sphere, one spectral
-operation. The vorticity is formed from the wind directly; then, because the
-spherical harmonic of total wavenumber $n$ is an eigenfunction of the Laplacian
-with eigenvalue $-n(n+1)/a^2$, the streamfunction is obtained coefficient by
-coefficient:
-\begin{equation}
-\psi_{n m} = \frac{\zeta_{n m}}{-n(n+1)/a^2},
-\qquad n\ge1 .
-\end{equation}
-There is no relaxation and no boundary value to supply, because there is no
-boundary. The only mode without an inverse is $n=0$, the global constant, which
-carries no wind and is set to zero.
-
-It is worth writing the vorticity out, because this is the first place the
-sphere's geometry enters. Define the two derivative operators
-\begin{equation}
-\px = \frac{1}{a\cos\varphi}\dd{}{\lambda},
-\qquad
-\py = \frac{1}{a}\dd{}{\varphi} .
-\end{equation}
-Then for a vector field with components $(F_x,F_y)$,
-\begin{align}
-\grad\cdot\bvec{F} &= \px F_x + \py F_y - \frac{\tan\varphi}{a}\,F_y ,
-\label{eq:div}\\
-\bvec{k}\cdot\grad\times\bvec{F} &= \px F_y - \py F_x + \frac{\tan\varphi}{a}\,F_x ,
-\label{eq:curl}\\
-\lap s &= \px\px s + \py\py s - \frac{\tan\varphi}{a}\,\py s .
-\label{eq:laplacian}
-\end{align}
-The $\tan(\text{latitude})$ terms are the sphere's. Dropping the one in
-\eqref{eq:curl} from a vorticity, for example, corrupts the potential vorticity
-that is built on it.
-
-The package does not evaluate $\tan\varphi$ on the path that matters. The
-divergence and the vorticity are formed by transforming products of grid fields
-against the derivatives of the Legendre functions --- an integration by parts in
-latitude --- so the metric appears only as $1/(1-\sin^2\varphi)$ inside an
-integral over a grid that has no row at the pole. The gradient is synthesised
-from a table of Legendre combinations built by recursion rather than by
-differentiation, so it too stays finite there. This matters at high latitude,
-where $\tan\varphi$ does not.
-
-The solver grid is a Gauss--Legendre grid with an \emph{even} number of latitude
-rows, so no row lands on the equator, and it has no pole row. Both facts are
-used: the equator is where the mirror of Section~\ref{sec:mirror} is joined, and
-the pole is where $\cos\varphi$ would otherwise be divided by.
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth]{figures/fig02_streamfunction.png}
-\caption{The streamfunction and the vorticity it carries. Left: the
-streamfunction recovered from the observed wind. Right: its Laplacian, the
-relative vorticity, formed by quadrature rather than by differencing so that the
-$\tan(\text{latitude})$ term is carried without being evaluated.}
-\end{figure}
-
-% =============================================================================
-\section{Potential vorticity}
-\label{sec:pv}
-
-Ertel's potential vorticity is
-\begin{equation}
-q = \frac{1}{\rho}\,\boldsymbol{\eta}\cdot\grad\theta ,
-\label{eq:ertel}
-\end{equation}
-with $\rho$ the density, $\boldsymbol{\eta}$ the absolute vorticity vector,
-$\theta$ the potential temperature and the gradient three-dimensional. It is
-conserved following three-dimensional, adiabatic, inviscid motion. This is
-(1.1) of Davis and Emanuel (1991) and (1.2) of Davis (1992).
-
-Making the hydrostatic approximation and writing \eqref{eq:ertel} on Exner
-surfaces in spherical coordinates gives (2.2) of Davis and Emanuel (1991),
+\textbf{Potential vorticity.} Ertel's $q=\rho^{-1}\boldsymbol{\eta}\cdot\grad\theta$,
+made hydrostatic and written on Exner surfaces, is (2.2) of Davis and Emanuel
+(1991),
 \begin{equation}
 q = -\frac{g\kappa\Pi}{p}
 \left(
@@ -365,251 +103,52 @@ q = -\frac{g\kappa\Pi}{p}
 \right),
 \label{eq:pvhydro}
 \end{equation}
-where $\eta$ is now the \emph{vertical component} of the absolute vorticity ---
-the same symbol that stands for the vector in \eqref{eq:ertel}, in the same
-paper. Below, $f+\lap\psi$ is written out instead.
-
-Two substitutions turn \eqref{eq:pvhydro} into a relation between $\psi$ and
-$\Phi$ alone. The vertical derivative of the total wind is replaced by the
-vertical derivative of the rotational wind, and $\theta$ is eliminated with the
-hydrostatic relation \eqref{eq:hydrostatic}, so that
-$\partial\theta/\partial\Pi = -\partial^2\Phi/\partial\Pi^2$. The result is
-(2.3) of Davis and Emanuel (1991),
+$\eta=f+\zeta$ the vertical absolute vorticity. Replacing the shear of the
+total wind by that of the rotational wind and eliminating $\theta$ with
+\eqref{eq:hydrostatic} gives their (2.3). Divided through by the leading
+factor, the field the inversion works with is
 \begin{equation}
-q = \frac{g\kappa\Pi}{p}
-\left[
-\left(f+\lap\psi\right)\ddd{\Phi}{\Pi}
-- \frac{1}{a^2\cos^2\varphi}
-  \frac{\partial^2\psi}{\partial\lambda\,\partial\Pi}
-  \frac{\partial^2\Phi}{\partial\lambda\,\partial\Pi}
-- \frac{1}{a^2}
-  \frac{\partial^2\psi}{\partial\varphi\,\partial\Pi}
-  \frac{\partial^2\Phi}{\partial\varphi\,\partial\Pi}
-\right].
-\label{eq:pv23}
-\end{equation}
-Its Cartesian counterpart is (1.4) of Davis (1992), whose last two terms are
-written together as
-$L_2(A,B)=-A_{x\Pi}B_{x\Pi}-A_{y\Pi}B_{y\Pi}$.
-
-The two metric factors in \eqref{eq:pv23} are exactly what is needed to make
-those last two terms one horizontal dot product. With
-$\px = (a\cos\varphi)^{-1}\partial_\lambda$ and $\py = a^{-1}\partial_\varphi$
-as in Section~\ref{sec:psi}, and with the scaling \eqref{eq:qhat}, the relation
-the package builds is
-\begin{equation}
-\hat q = \left(f^{*}+\lap\psi\right)\ddd{\Phi}{\Pi}
- \;-\; \grad\!\left(\dd{\psi}{\Pi}\right)\cdot\grad\!\left(\dd{\Phi}{\Pi}\right).
+\hat q \;=\; q\,\frac{p}{g\kappa\Pi}
+\;=\; \left(f^{*}+\lap\psi\right)\ddd{\Phi}{\Pi}
+ \;-\; \grad\!\left(\dd{\psi}{\Pi}\right)\cdot\grad\!\left(\dd{\Phi}{\Pi}\right),
+\qquad
+\frac{p}{g\kappa\Pi} = \left(\frac{p}{p_0}\right)^{1-\kappa}\frac{p_0}{\kappa\,g\,C_p}.
 \label{eq:pvsolved}
 \end{equation}
-The first term is absolute vorticity times static stability. The second measures
-the correlation between the vertical shear of the rotational wind and the
-horizontal gradient of potential temperature, since
-$\grad(\partial\Phi/\partial\Pi)=-\grad\theta$. Both are formed as pointwise
-products on the grid and transformed back, so no metric factor is ever
-evaluated.
+This factor is the whole of the unit conversion; everything else in the solver
+is SI. Values are quoted in PVU, $1~\text{PVU}=10^{-6}$~m$^2$~K~kg$^{-1}$~s$^{-1}$.
 
-\subsection*{Evaluating the source from the data}
-
-The right-hand side of \eqref{eq:pvsolved} has to be evaluated from the
-observed event and the observed climatology before either can be inverted, and
-there is a choice of stencils. By default (\code{pv\_source="operator"}) the
-source is evaluated with the inversion's own: $\partial^2\Phi/\partial\Pi^2$ by
-the three-point non-uniform second difference of
-Section~\ref{sec:discretisation}, applied to the observed geopotential on all
-nine levels; the two boundary temperatures as the hydrostatic differences
-\eqref{eq:thetahalf} of that geopotential across the half levels; and the shear
-terms $\partial\psi/\partial\Pi$ and $\partial\Phi/\partial\Pi$ by centred first
-differences over the interior levels, which at the first and last interior
-level reach the operator's ghosts --- the geopotential's hydrostatic ghost and
-the streamfunction's thermal-wind ghost \eqref{eq:psighost} --- rather than the
-observed 1000 and 100~hPa fields (Section~\ref{sec:bc}). The observed pair
-$(\psi,\Phi)$ then satisfies the discrete potential-vorticity relation exactly,
-apart from the floor, and the total inversion has to move the geopotential only
-for the balance row, not to absorb a discrepancy between two discretisations of
-the same quantity.
-
-The limited-area convention is kept as \code{pv\_source="data"}:
-stratification and shear from plain centred differences of the temperature and
-the wind over the full level set, and the boundary temperature as the mean of
-the two levels beside the half level. On the stretched Exner mesh the two
-differ by 5--14\% of the potential vorticity, level by level, on the
-walkthrough event, and by 1.4~K rms at the bottom boundary and 2.6~K at the
-top; the difference is a property of the mesh, not of the data.
-
-The operator source takes the geopotential and the temperature to be
-hydrostatically consistent, and the assumption is checked rather than trusted:
-the area mean of the boundary temperature the geopotential implies, over the
-one the temperature gives, is formed at both boundaries, and a run stops if the
-top ratio lies outside 0.7--1.4. For real data both ratios are within a percent
-of one --- 1.002 at the bottom and 0.995 at the top for the walkthrough event
-and for its climatology alike --- whereas a potential temperature supplied as
-temperature, or a height supplied as geopotential, moves the top ratio far from
-one while passing every other check.
-
-The unit is the potential-vorticity unit,
-$1~\text{PVU}=10^{-6}$~m$^2$~K~kg$^{-1}$~s$^{-1}$. A typical tropospheric value
-is 0.5~PVU and stratospheric values are roughly an order of magnitude larger;
-the tropopause is conventionally drawn at the 1.5~PVU contour (Davis and Emanuel
-1991, p.~1939 and footnote 8).
-
-Positivity is not cosmetic. Equation~\eqref{eq:pvsolved} is elliptic only where
-the absolute vorticity and the static stability are both positive, which is the
-same as $q>0$ where the cross term is small. Davis and Emanuel (1991,
-Appendix~A) report that their solution did not converge unless that condition was
-imposed on the observed field, and set negative values to $10^{-2}$~PVU. This
-package floors the potential vorticity too, and gives the added amount back by
-area weight; the values and the accounting are in
-Section~\ref{sec:choices}.
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth]{figures/fig03_pv.png}
-\caption{Ertel potential vorticity for the event. Left: a map on one level.
-Right: a vertical section through the anomaly, with the tropopause visible as
-the crowding of the contours.}
-\end{figure}
-
-% =============================================================================
-\section{The balance equation}
-\label{sec:balance}
-
-\subsection{As Charney wrote it}
-
-Charney (1955, p.~24) obtains the balance equation by omitting the small
-vertical-advection terms, substituting the streamfunction for the wind, and
-taking the horizontal divergence of the equations of motion with pressure as the
-vertical coordinate. As printed, and with $\phi$ the geopotential, it reads
+\textbf{Balance.} Charney (1955, p.~24) writes the divergence equation, with
+the divergent wind omitted, as
 \begin{equation}
 \lap\psi + \grad\psi\cdot\grad f
  - \frac{2}{f}\left[
    \left(\frac{\partial^2\psi}{\partial x\,\partial y}\right)^{\!2}
    - \ddd{\psi}{x}\ddd{\psi}{y}
  \right]
- = \frac{\lap\phi}{f} .
+ = \frac{\lap\phi}{f} ,
 \label{eq:charney}
 \end{equation}
-The paper carries no equation numbers, so \eqref{eq:charney} is cited by page
-alone. One transcription point: every term of \eqref{eq:charney} except
-$\grad\psi\cdot\grad f$ has been divided through by $f$, and as printed that
-term is dimensionally inconsistent with the rest. Read as
-$\grad\psi\cdot\grad f/f$ and multiplied through by $f$, the equation becomes
-the form used everywhere below.
-
-Charney gives the condition under which \eqref{eq:charney} can be solved for
-$\psi$ as a boundary-value problem:
-\begin{equation}
-\frac{\lap\phi}{f} + \frac{f}{2} > 0 ,
-\end{equation}
-that is, the geostrophic relative vorticity must exceed $-f/2$. He also notes
-that if the nonlinear terms are small the relation integrates to the geostrophic
-approximation, so the balance equation is a generalisation of it: both determine
-the velocity from the geopotential.
-
-Multiplied through by $f$ and rearranged, \eqref{eq:charney} is (1.3) of
-Davis (1992),
-\begin{equation}
-\lap\Phi = \grad\cdot f\grad\psi
- + 2\left[\ddd{\psi}{x}\ddd{\psi}{y}
- - \left(\frac{\partial^2\psi}{\partial x\,\partial y}\right)^{\!2}\right],
-\label{eq:bal_cart}
-\end{equation}
-and in spherical coordinates it is (2.1) of Davis and Emanuel (1991),
-\begin{equation}
-\lap\Phi = \grad\cdot\left(f\grad\psi\right)
- + \frac{2}{a^4\cos^2\varphi}\,
-   \frac{\partial(\partial\psi/\partial\lambda,\;\partial\psi/\partial\varphi)}
-        {\partial(\lambda,\varphi)} .
-\label{eq:bal_sph}
-\end{equation}
-The $a^4$ is not a misprint: it is what turns the Jacobian in $(\lambda,\varphi)$
-into the determinant of the second derivatives in the local $x$ and $y$.
-
-The assumption behind it is stated in both papers. It is obtained by taking the
-horizontal divergence of the momentum equations, splitting the wind into
-rotational and irrotational parts, and retaining terms of order $R_\psi$ while
-neglecting those of order $R_\chi$ and higher, where $R_\psi$ and $R_\chi$ are
-Rossby numbers built on the two parts of the wind (Davis and Emanuel 1991,
-p.~1934). It is accurate in flows with large curvature because it is close to
-gradient-wind balance, and it remains accurate as long as the Froude number is
-small even when the Rossby number is large (Davis 1992, p.~1398). Charney's own
-justification for dropping the divergence terms is empirical: they are one to
-two orders of magnitude smaller than the rest.
-
-\subsection{Where the sphere enters}
-
-Two distinct pieces of geometry appear, and they are worth separating.
-
-\textbf{The tan(latitude) terms.} They are already inside
-\eqref{eq:bal_sph}: neither the spherical divergence nor the spherical Laplacian
-is the flat one. Writing them out with the operators \eqref{eq:div} and
-\eqref{eq:laplacian} of Section~\ref{sec:psi},
-\begin{equation}
-\grad\cdot\left(f\grad\psi\right)
- = f\left[\px\px\psi + \py\py\psi
- - \frac{\tan\varphi}{a}\,\py\psi\right] + \beta\,\py\psi ,
-\qquad
-\beta = \frac{1}{a}\dd{f}{\varphi} = \frac{2\Omega\cos\varphi}{a} .
-\label{eq:fdivgrad}
-\end{equation}
-The $\tan(\text{latitude})$ term is not a small correction to the $\beta$ term.
-Their ratio is
-\begin{equation}
-\frac{f\tan\varphi/a}{\beta} = \tan^2\varphi ,
-\end{equation}
-so at 45~N the two are exactly equal, at 60~N the $\tan(\text{latitude})$ term is
-three times as large, and poleward of that it dominates. Dropping it does not perturb the
-balance equation; it changes which equation is being solved.
-
-\textbf{The curvature term.} The package does not evaluate the determinant of
-second derivatives at all. It solves the balance equation in the form
+which multiplied through by $f$ is (1.3) of Davis (1992), and in spherical
+coordinates (2.1) of Davis and Emanuel (1991). It is close to gradient-wind
+balance and is solvable for $\psi$ where $\lap\phi/f + f/2>0$. The package
+solves it in the exact spherical form obtained by taking the divergence of the
+momentum equation on the sphere,
 \begin{equation}
 \lap\Phi = N(\psi),
 \qquad
 N(\psi) = \grad\cdot\left[\left(f^{*}+\zeta\right)\grad\psi\right]
  - \tfrac12\lap\left|\grad\psi\right|^2 ,
-\qquad \zeta=\lap\psi ,
 \label{eq:Nform}
 \end{equation}
 in which every term is a divergence or a Laplacian of a product formed on the
-grid. Nothing here is a second derivative in latitude and nothing divides by
-$\cos\varphi$, so the expression is regular everywhere, poles included.
-
-On the sphere the two forms are not the same. The identity is
+grid. On the sphere this differs from the plane form by the curvature term,
 \begin{equation}
 \grad\cdot\left(\zeta\grad\psi\right) - \tfrac12\lap\left|\grad\psi\right|^2
- = 2\det\left(\mathrm{Hess}\,\psi\right) - \frac{\left|\grad\psi\right|^2}{a^2},
+ = 2\det\left(\mathrm{Hess}\,\psi\right) - \frac{\left|\grad\psi\right|^2}{a^2}.
 \label{eq:curvature}
 \end{equation}
-so \eqref{eq:Nform} falls short of
-$\grad\cdot(f^{*}\grad\psi) + 2\det(\mathrm{Hess}\,\psi)$ --- the spherical
-reading of the Jacobian group of \eqref{eq:bal_sph} --- by exactly
-$|\grad\psi|^2/a^2 = |\bvec{V}|^2/a^2$. That is the sphere's curvature. It is
-one-signed and systematic rather than random, and for a 30~m~s$^{-1}$ flow it is
-about 2\% of the balance terms. The package computes it and reports it as a
-diagnostic rather than absorbing it silently.
-
-The determinant form is retained as an independent check, through the two
-deformation components. These carry the $\tan(\text{latitude})$ terms explicitly:
-\begin{align}
-D_1 &= \px u - \py v - \frac{\tan\varphi}{a}\,v , &
-D_2 &= \px v + \py u + \frac{\tan\varphi}{a}\,u ,
-\label{eq:deform}
-\end{align}
-pairing with
-$\grad\cdot\bvec{V} = \px u + \py v - (\tan\varphi/a)v$ and
-$\zeta = \px v - \py u + (\tan\varphi/a)u$, and giving
-\begin{equation}
-2\det\left(\mathrm{Hess}\,\psi\right) = \tfrac12\left(\zeta^2 - D_1^2 - D_2^2\right).
-\end{equation}
-This is a check and not the production path, precisely because
-\eqref{eq:deform} evaluates $\tan\varphi$ and therefore degrades towards the
-poles, while \eqref{eq:Nform} does not.
-
-\textbf{The polarised form, and where the row is elliptic.} The quadratic part
-of \eqref{eq:Nform} is
-$Q(\psi)=\grad\cdot(\zeta\grad\psi)-\tfrac12\lap|\grad\psi|^2$, and the
-symmetric bilinear form it comes from is
+The quadratic part of $N$ comes from the symmetric bilinear form
 \begin{equation}
 B(a,b) = \grad\cdot\left(\zeta_a\grad b\right)
  + \grad\cdot\left(\zeta_b\grad a\right)
@@ -618,994 +157,502 @@ B(a,b) = \grad\cdot\left(\zeta_a\grad b\right)
  - \frac{2\,\grad a\cdot\grad b}{a^2},
 \label{eq:polarised}
 \end{equation}
-with $B(\psi,\psi)=2Q(\psi)$; it is \eqref{eq:curvature} polarised. Everything
-said below about linearising the balance equation rests on this form. The
-tangent of the balance row at a reference $\tilde\psi$ is
-$\grad\cdot(f^{*}\grad\psi') + B(\tilde\psi,\psi')$, and the principal symbol
-of that operator has the two eigenvalues
-\begin{equation}
-f^{*} + \tilde\zeta \mp \tilde D ,
-\qquad
-\tilde D = \left(\tilde D_1^2 + \tilde D_2^2\right)^{1/2},
-\label{eq:symbol}
-\end{equation}
-so the linearised balance row is elliptic exactly where the absolute vorticity
-of the reference flow exceeds its total deformation. This is Charney's
-condition in another guise: since
-$(f+\zeta)^2 - D^2 = 4\det\left(\mathrm{Hess}\,\psi + \tfrac12 f I\right)$, and
-by the balance equation itself that determinant is
-$\tfrac12\lap\Phi + \tfrac14 f^2$ apart from the $\beta$ term, the row is
-elliptic where $\lap\Phi/f + f/2 > 0$. Where the deformation wins --- on the
-flanks of a strong jet or anticyclone, a tenth to a seventh of the area of the
-jet level on the winter events of Section~\ref{sec:discretisation} --- the
-linearised system is indefinite there. What the package does about it is
-described in that section.
+$D_1,D_2$ the two deformation components, so that the tangent of the balance
+row at a reference $\tilde\psi$ is $\grad\cdot(f^{*}\grad\psi')+B(\tilde\psi,\psi')$
+and its principal symbol has eigenvalues $f^{*}+\tilde\zeta\mp\tilde D$,
+$\tilde D=(\tilde D_1^2+\tilde D_2^2)^{1/2}$. The row is elliptic where the
+absolute vorticity exceeds the deformation, $(f^{*}+\tilde\zeta)^2>\tilde D^2$,
+which is Charney's condition in another form. $\tilde D$ is read off
+\eqref{eq:polarised} with $a=b$, from spectral operations alone.
 
-The deformation magnitude $\tilde D$ that this needs is not formed from
-\eqref{eq:deform}. It is read off the identity \eqref{eq:polarised} with $a=b$,
-$\tilde D^2 = \tilde\zeta^2 - B(\tilde\psi,\tilde\psi) - 2|\grad\tilde\psi|^2/a^2$,
-every term of which is a divergence, a Laplacian or a gradient formed
-spectrally; so it stays regular at the poles, where the strain-rate components
---- which expand the wind components as scalars --- do not.
-
-The Coriolis parameter in \eqref{eq:Nform} is $f^{*}$, the floored form of
-Section~\ref{sec:mirror}, not the true $f$. The reason is visible in
-\eqref{eq:fdivgrad}: the balance term differentiates $f$, and $|f|$ on a
-mirrored hemisphere has a corner at the equator.
-
-% =============================================================================
-\section{The coupled system}
-\label{sec:system}
-
-The balance equation relates $\Phi$ to $\psi$. The potential-vorticity relation
-relates them again, differently. Together they are a closed system for the two
-fields, given the potential vorticity in the interior and the potential
-temperature on the two boundaries:
+\textbf{The coupled system.} On each interior level the two relations hold
+together, for the two fields $(\Phi,\psi)$:
 \begin{align}
 \lap\Phi &= \grad\cdot\left[\left(f^{*}+\lap\psi\right)\grad\psi\right]
  - \tfrac12\lap\left|\grad\psi\right|^2 ,
 \label{eq:sys1}\\[1mm]
 \hat q &= \left(f^{*}+\lap\psi\right)\ddd{\Phi}{\Pi}
- - \grad\!\left(\dd{\psi}{\Pi}\right)\cdot\grad\!\left(\dd{\Phi}{\Pi}\right) ,
+ - \grad\!\left(\dd{\psi}{\Pi}\right)\cdot\grad\!\left(\dd{\Phi}{\Pi}\right) .
 \label{eq:sys2}
 \end{align}
-with $\partial\Phi/\partial\Pi=-\theta$ at the top and the bottom
-(Section~\ref{sec:bc}). Davis and Emanuel (1991, p.~1934) state it in exactly
-these terms: their (2.1) and (2.3), which are \eqref{eq:sys1} and
-\eqref{eq:sys2} here, ``form a complete system for the unknowns $\Phi$ and
-$\Psi$, given $q$''.
+The balance row \eqref{eq:sys1} couples $\Phi$ and $\psi$ on each level; the
+potential-vorticity row \eqref{eq:sys2} couples the levels vertically through
+$\Phi_{\Pi\Pi}$ and the shear terms. Davis and Emanuel (1991, p.~1934) state
+that (2.1) and (2.3) form a complete system for $\Phi$ and $\Psi$ given $q$.
+Both rows are quadratic: \eqref{eq:sys1} in $\psi$, \eqref{eq:sys2} bilinear in
+$(\psi,\Phi)$. The system is elliptic where $f^{*}+\zeta>0$, $S>0$ and the
+balance row's condition above holds.
 
-Three properties of the system decide everything that follows.
-
-\textbf{It is elliptic only conditionally.} Both equations are elliptic where
-the absolute vorticity $f^{*}+\lap\psi$ and the static stability
-$\partial^2\Phi/\partial\Pi^2$ are positive (Davis and Emanuel 1991,
-Appendix~A), and the balance row asks for more: its linearisation is elliptic
-only where the absolute vorticity of the reference flow exceeds the
-deformation, \eqref{eq:symbol}. Where either condition fails the character of
-the problem changes with it, and no amount of iteration will recover a
-solution. The floors of Section~\ref{sec:choices} exist for the first
-condition and the deformation limiter of Section~\ref{sec:discretisation} for
-the second, and for no other reason.
-
-\textbf{It is nonlinear, but only mildly.} Equation~\eqref{eq:sys1} is quadratic
-in $\psi$. Equation~\eqref{eq:sys2} is bilinear in $(\psi,\Phi)$: every term is
-one factor of $\psi$ times one factor of $\Phi$, and the coefficients depend on
-neither. No term is of higher degree than two, and there is no transcendental
-dependence anywhere. Section~\ref{sec:pieces} is built on that fact.
-
-\textbf{The response to a sum of sources is not the sum of the responses.} That
-is what nonlinearity means here, and it is the whole difficulty of doing the
-inversion piecewise. Two potential-vorticity anomalies inverted together do not
-give the sum of what each gives alone, because each changes the coefficients the
-other is inverted against.
-
-\subsection*{The total state, and the mean it is measured from}
-
-The system \eqref{eq:sys1}--\eqref{eq:sys2} is solved once, for the event, by
-Newton's method (Section~\ref{sec:discretisation}). That gives the balanced
-total state $\left(\Phi_{\text{bal}},\psi_{\text{bal}}\right)$. The perturbation
-that the piecewise operator is frozen at is then
+\textbf{Boundary conditions.} At the top and the bottom,
 \begin{equation}
-\psi' = \psi_{\text{bal}} - \bar\psi ,
+\dd{\Phi}{\Pi} = -\theta_B \ \ \text{(lower half level)},
 \qquad
-\Phi' = \Phi_{\text{bal}} - \bar\Phi ,
-\end{equation}
-measured from the \emph{observed} climatological mean rather than from a
-separately balanced one.
-
-That is a choice, and it has a cost. Whatever departure from balance the
-observed mean carries is absorbed into $\psi'$ and $\Phi'$. Davis (1992,
-p.~1411) describes the same shortcut in its stronger form --- assuming the
-observed mass and rotational wind fields are in balance and proceeding directly
-to the piecewise inversion --- and notes that the discrepancy this introduces is
-of the order of the departure of those fields from balance, which is generally
-small. Here only the mean is taken as observed; the event is balanced properly.
-The consequence appears in the physical residual of Section~\ref{sec:closure},
-never in the closure of the pieces, and it is measured there as the gap between
-the sum of the pieces and the balanced perturbation.
-
-% =============================================================================
-\section{The piecewise linearisation}
-\label{sec:pieces}
-
-\subsection{The choice, and why it is the one that closes}
-
-Davis and Emanuel (1991, p.~1938) put the problem and their answer in one
-sentence: linear equations are needed for a piecewise inversion, and rather than
-dispensing with the nonlinear terms altogether, the linearisation is performed by
-hiding the nonlinear terms in the non-constant coefficients of a linear
-differential operator.
-
-The algebra is clearest on a single product. Let $q=AB$, split each field into a
-mean and an anomaly, and split each anomaly into $N$ pieces. Then
-\begin{equation}
-q' = \bar A B' + \bar B A' + A'B' ,
-\label{eq:toy25}
-\end{equation}
-which is (2.5) of Davis and Emanuel (1991), and summing the pieces,
-\begin{equation}
-\sum_{n=1}^{N} q_n
- = \bar A\sum_{n} B_n + \bar B\sum_{n} A_n
- + A_1B_1 + A_1B_2 + A_2B_1 + \cdots + A_NB_N .
-\label{eq:toy26}
-\end{equation}
-The difficulty is entirely in the last group. The linear terms of
-\eqref{eq:toy26} assign themselves to pieces; the quadratic ones belong to pairs
-of pieces and to no single one. Two extreme assignments give the whole of the
-quadratic term to $A_n$ or the whole of it to $B_n$ --- (2.7) and (2.8) of the
-same paper --- and neither is preferable to the other. Davis and Emanuel take
-their average,
-\begin{equation}
-q_n = \left(\bar A + \tfrac12\sum_{n=1}^{N}A_n\right)B_n
- + \left(\bar B + \tfrac12\sum_{n=1}^{N}B_n\right)A_n ,
-\label{eq:toy29}
-\end{equation}
-their (2.9), on the grounds that it is the only choice invariant under
-exchanging $A$ and $B$. Writing
-$\tilde{(\;)} = \bar{(\;)} + \tfrac12(\;)'$, equation \eqref{eq:toy29} is simply
-$q_n = \tilde A B_n + \tilde B A_n$.
-
-Davis (1992) named this the \emph{full linear} method and set it beside three
-others: truncated linear, which drops the quadratic term instead of splitting it;
-subtraction of the piece from the total followed by a fresh nonlinear solve; and
-addition of the piece to the mean. The differences between them are generally
-less than 25\% even at large Rossby number, with truncated linear the outlier;
-accounting for the nonlinear terms in the balance equation matters. Davis stresses
-that there is no unambiguously correct method and that the right one depends on
-the problem.
-
-For this package the deciding property is the one stated in the conclusions of
-Davis (1992, pp.~1410--1411): the nonlinear methods have the disadvantage that
-the sum of the solutions for each anomaly does not equal the total perturbation
-flow, whereas the full linear method is defined so that it does. That is what
-allows the inversion to be read as a decomposition at all.
-
-\subsection{The linear system}
-
-Applying \eqref{eq:toy29} to \eqref{eq:sys1} and \eqref{eq:sys2} gives, for the
-piece driven by the source $\left(\hat q_n,\theta_{B,n},\theta_{T,n}\right)$, a
-\emph{linear} system for that piece's $\left(\Phi_n,\psi_n\right)$:
-\begin{align}
-\lap\Phi_n &=
- \grad\cdot\left[\left(f^{*}+\tilde\zeta\right)\grad\psi_n\right]
- + \grad\cdot\left[\left(\lap\psi_n\right)\grad\tilde\psi\right]
- - \lap\left(\grad\tilde\psi\cdot\grad\psi_n\right),
-\label{eq:E1}\\[1mm]
-\hat q_n &=
- A\,\ddd{\Phi_n}{\Pi} + S\,\lap\psi_n
- - \grad\!\left(\dd{\tilde\psi}{\Pi}\right)\cdot\grad\!\left(\dd{\Phi_n}{\Pi}\right)
- - \grad\!\left(\dd{\tilde\Phi}{\Pi}\right)\cdot\grad\!\left(\dd{\psi_n}{\Pi}\right),
-\label{eq:E2}
-\end{align}
-with
-\begin{equation}
-\tilde\psi = \bar\psi + \tfrac12\psi' ,
+\dd{\Phi}{\Pi} = -\theta_T \ \ \text{(upper half level)},
 \qquad
-\tilde\Phi = \bar\Phi + \tfrac12\Phi' ,
-\qquad
-\tilde\zeta = \lap\tilde\psi ,
-\qquad
-A = f^{*} + \tilde\zeta ,
-\qquad
-S = \ddd{\tilde\Phi}{\Pi} .
+\dd{\psi}{\Pi} = -\frac{\theta-\langle\theta\rangle}{f^{*}} \ \ \text{(both)},
+\label{eq:bc}
 \end{equation}
-Equations \eqref{eq:E1} and \eqref{eq:E2} are (2.10) and (2.11) of Davis and
-Emanuel (1991), and (3.1) and (3.2) of Davis (1992), written in the divergence
-form of Section~\ref{sec:balance} and on the sphere.
+$\langle\cdot\rangle$ the area mean. The streamfunction condition is the
+thermal-wind form of the hydrostatic one, $\Phi\simeq f\psi$, with the
+horizontally uniform part of $\theta$ removed because it carries no flow, and
+the division by $f^{*}$ made before any horizontal gradient is taken. There is
+no lateral boundary: the domain is the whole sphere, and the only additional
+conditions are the gauges of Step~3.
 
-Everything frozen is frozen once, before any piece is solved:
-
+\textbf{The levels.} Nine pressure levels. The two outermost carry boundary
+potential temperature on the half levels next to them (near 925 and 140~hPa);
+the seven between carry potential vorticity and are the unknowns.
 \begin{center}
 \small
-\begin{tabular}{lll}
+\begin{tabular}{rrlrr}
 \toprule
-coefficient & definition & where it acts \\
+$p$ [hPa] & $\Pi$ [J~kg$^{-1}$~K$^{-1}$] & carries &
+$\delta_k$ [J~kg$^{-1}$~K$^{-1}$] & $p/(g\kappa\Pi)$ \\
 \midrule
-$f^{*}$ & floored Coriolis parameter --- fixed, not a linearisation & both rows \\
-$\tilde\psi,\;\tilde\zeta$ & $\bar\psi+\tfrac12\psi'$ and its Laplacian & balance row \\
-$A$ & $f^{*}+\tilde\zeta$, absolute vorticity, floored & potential-vorticity row \\
-$S$ & $\partial^2\tilde\Phi/\partial\Pi^2$, static stability, floored & potential-vorticity row \\
-$\grad(\partial\tilde\psi/\partial\Pi)$ & reference shear of the streamfunction & cross terms \\
-$\grad(\partial\tilde\Phi/\partial\Pi)$ & reference shear of the geopotential & cross terms \\
-$w$ & equatorial taper weight (Section~\ref{sec:mirror}) & every quadratic term \\
-$s$ & deformation limiter (Section~\ref{sec:limiter}) & balance row, deformation part \\
+1000 & 1004.5000 & boundary $\theta_B$ & ---     & ---    \\
+ 850 &  958.9234 & interior $\hat q$   & $-48.66$ & 31.63 \\
+ 700 &  907.1774 & interior $\hat q$   & $-67.45$ & 27.53 \\
+ 500 &  824.0269 & interior $\hat q$   & $-67.02$ & 21.65 \\
+ 400 &  773.1305 & interior $\hat q$   & $-55.95$ & 18.46 \\
+ 300 &  712.1246 & interior $\hat q$   & $-48.58$ & 15.03 \\
+ 250 &  675.9784 & interior $\hat q$   & $-38.95$ & 13.19 \\
+ 200 &  634.2263 & interior $\hat q$   & $-77.85$ & 11.25 \\
+ 100 &  520.2782 & boundary $\theta_T$ & ---     & ---    \\
 \bottomrule
 \end{tabular}
 \end{center}
-
-The last two are not coefficients of the equations but weights on their
-products; both are fixed before any piece is solved and are the same for every
-piece.
-
-The two reference vertical derivatives are centred over the full set of levels,
-including the two outermost ones. On those two rows the reference state does
-not carry the data's own 1000 and 100~hPa fields: its boundary levels are
-rebuilt as the ghosts of Section~\ref{sec:bc} --- the geopotential
-hydrostatically from the reference boundary temperature
-$\bar\theta+\tfrac12\theta'$, the streamfunction from \eqref{eq:psighost} ---
-exactly as the balanced total state carries them. A reference that mixed the
-observed boundary levels with a balanced state's ghosts would give the
-stability and the cross-term coefficients at the first and last interior
-levels the tangent of neither system.
-
-\subsection{Why the linearisation is exact}
-
-The half in $\tilde{(\;)}$ is usually presented as a symmetry argument. On a
-system of degree two it is more than that: it makes the linearisation an
-identity.
-
-Write the balance nonlinearity as $N(\psi)=Q(\psi,\psi)$ plus linear terms, with
-$Q$ a symmetric bilinear form, and write the potential-vorticity cross term as a
-bilinear $B(\psi,\Phi)$. Then, for any mean state and any perturbation,
-\begin{align}
-N(\bar x + x') - N(\bar x) &= DN\!\left(\bar x + \tfrac12 x'\right)\!\left[x'\right],
-\label{eq:idquad}\\
-B(\bar x + x',\,\bar y + y') - B(\bar x,\bar y)
- &= B\!\left(x',\,\bar y + \tfrac12 y'\right)
-  + B\!\left(\bar x + \tfrac12 x',\,y'\right).
-\label{eq:idbilin}
-\end{align}
-Both lines are identities, not first-order truncations. Expanding
-\eqref{eq:idquad}: the left side is
-$2Q(\bar x,x')+Q(x',x')$, and the right side is
-$2Q(\bar x+\tfrac12x',\,x')$, which is the same. Expanding
-\eqref{eq:idbilin}: the left side is
-$B(\bar x,y')+B(x',\bar y)+B(x',y')$, and the right side is
-$B(x',\bar y)+\tfrac12 B(x',y')+B(\bar x,y')+\tfrac12 B(x',y')$, again the same.
-
-Equations \eqref{eq:E1} and \eqref{eq:E2} realise both. In \eqref{eq:E2} the
-term $A\,\partial^2\Phi_n/\partial\Pi^2$ supplies
-$B\!\left(\bar\psi+\tfrac12\psi',\,\Phi_n\right)$ and the term $S\lap\psi_n$
-supplies $B\!\left(\psi_n,\,\bar\Phi+\tfrac12\Phi'\right)$, which is
-\eqref{eq:idbilin} term for term; in \eqref{eq:E1} the three terms are
-$DN(\tilde\psi)[\psi_n]$.
-
-So the operator is not a tangent approximation to the system. It is the exact
-finite-increment operator: applied to the full perturbation, it returns exactly
-the difference between the nonlinear system evaluated at the total state and at
-the mean state. That is what makes the piece amplitudes quantitative rather than
-indicative. The one qualification --- that this is exactness with respect to the
-operator that is actually built, and that the floors and the equatorial taper
-modify that operator --- is set out in Section~\ref{sec:choices}.
-
-\subsection{What a piece is}
-
-One piece per source. With the nine-level set there are nine: the bottom
-boundary temperature, the seven interior potential-vorticity levels, and the top
-boundary temperature. Every level index belongs to exactly one piece, and the
-list is checked rather than assumed.
-
-The sources are taken exactly as Davis and Emanuel (1991, p.~1940) take them:
-either $\hat q_n$ is the anomaly on one interior level with $\theta_n=0$ on both
-boundaries, or $\theta_n$ is the anomaly on one boundary with $\hat q_n=0$
-throughout the interior. Nothing else is ever nonzero.
-
-The potential-vorticity anomaly of a piece is formed by flooring the event field
-and the mean field \emph{separately} and then differencing them; the boundary
-temperature anomalies are plain differences. The flooring is not linear, so this
-is the anomaly of two floored fields and not the floored anomaly. The ordering is
-deliberate and the reasoning is in Section~\ref{sec:choices}.
-
-There is no piece for a lateral boundary, because there is no lateral boundary
-(Section~\ref{sec:bc}).
-
-\subsection{Why the pieces add exactly}
-
-Four facts, each of which can be checked independently.
-
-\textbf{One operator.} The frozen coefficients, the assembled operator and its
-preconditioner are built once, outside the loop over pieces. Every piece is one
-solve against the same $M$. The floors, the equatorial weight and the
-deformation limiter are baked into it identically for all pieces --- which is
-why the taper is a weight on the operator's products and never on a source or
-a solution, and why the pieces take the limiter the total inversion converged
-with rather than deciding one of their own.
-
-\textbf{The right-hand side is linear in the source.} The balance row's
-right-hand side is identically zero apart from the gauge slot of
-Section~\ref{sec:discretisation}. The potential-vorticity row's is
-\begin{equation}
-b_2 = \hat q_n
- - A\,\Theta\!\left(\theta_{B,n},\theta_{T,n}\right)
- - (1-w)\,\tilde\zeta\,\big\langle\Theta\big\rangle
- + \grad\!\left(\dd{\tilde\psi}{\Pi}\right)\cdot\grad\Phi^{\text{gh}}_{n}
- + \grad\!\left(\dd{\tilde\Phi}{\Pi}\right)\cdot\grad\psi^{\text{gh}}_{n},
-\end{equation}
-where $\Theta$ is the folded boundary source of Section~\ref{sec:bc}, the third
-term is the boundary part of the taper's partner term \eqref{eq:partner}, and
-the two ghost contributions are the boundary parts of the first differences in
-$\Pi$ inside the cross terms. The boundary temperatures pass through the
-spectral truncation before any of this is formed, so the right-hand side sees
-exactly the temperature the reference state's ghosts were built from. Every
-one of those maps is linear in $\left(\hat q_n,\theta_{B,n},\theta_{T,n}\right)$:
-$\Theta$ is linear, the ghost of a first difference is linear, and the
-streamfunction ghost \eqref{eq:psighost} is linear, being an area-mean removal
-followed by division by a fixed $f^{*}$.
-
-\textbf{The sources partition exactly.} Each interior level's anomaly goes to
-one piece and each boundary temperature to one piece, and their sum is the whole
-anomaly. This is why a group defined by something other than a level list has to
-be an additive split of the \emph{source}: a multiplicative mask applied to a
-solution partitions nothing (Section~\ref{sec:groups}).
-
-\textbf{The inverse is linear.} $\sum_n M^{-1}b_n = M^{-1}\sum_n b_n$, which is
-the solve with all sources present at once. The hydrostatic reconstruction of
-the two boundary levels is affine with a linear temperature term, so the
-extended nine-level arrays sum as well.
-
-Put together with the exactness of \eqref{eq:idquad}--\eqref{eq:idbilin}, the
-object the pieces sum to is the exact perturbation the system implies, not a
-tangent approximation to it. Two limits on that statement are worth carrying
-forward. The closure is exact in exact arithmetic; in practice each piece is
-solved to a finite tolerance and the closure is measured rather than assumed.
-And the pieces sum to the all-sources \emph{linear} solve, not to
-$\psi_{\text{bal}}-\bar\psi$. Both are the subject of
-Section~\ref{sec:closure}.
+$\delta_k=\tfrac12(\Pi_{k+1}-\Pi_{k-1})$ is the half-span of the vertical
+stencil at level $k$, negative because $\Pi$ descends. A ten-level set adds
+150~hPa. The unknown vector of the coupled system is therefore
+$(\Phi_k,\psi_k)$ on the seven interior levels, and the sources are the seven
+$\hat q_k$ and the two boundary temperatures.
 
 % =============================================================================
-\section{Boundary conditions}
-\label{sec:bc}
+\section{The steps}
+\label{sec:steps}
 
-\subsection{Top and bottom}
+\subsection{Step 1: input and the sphere}
+\label{sec:step1}
 
-The condition at the top and the bottom is hydrostatic balance,
-\begin{equation}
-\dd{\Phi}{\Pi} = -\theta
-\qquad\text{at } \Pi=\Pi_0 \text{ and } \Pi=\Pi_T ,
-\end{equation}
-and for a piece, $\partial\Phi_n/\partial\Pi = -\theta_n$ (Davis and Emanuel
-1991, p.~1939; Davis 1992, p.~1400). It is implemented as a pair of ghost values
-just outside the interior:
-\begin{equation}
-\Phi_0 = \Phi_1 + \theta_B(\Pi_1-\Pi_0),
-\qquad
-\Phi_{N-1} = \Phi_{N-2} - \theta_T(\Pi_{N-1}-\Pi_{N-2}).
-\label{eq:ghosts}
-\end{equation}
+\textbf{Input.} Two states on the same northern-hemisphere grid and the same
+nine levels, an \emph{event} and the \emph{climatology} it is measured
+against: geopotential height $z$, temperature $T$, and the wind $u,v$, each
+$(9,n_{\text{lat}},n_{\text{lon}})$, bottom-up, latitude ascending from the
+equator, longitude ascending from zero. The walkthrough event is the ERA5
+blocking ridge of 8~January~2025, centre 43.5~N 226.5~E, on a $61\times240$
+grid (Figure~\ref{fig:event}); its 500~hPa height anomaly at the centre is
+272~m. Where a level lies below ground, $T$, $u$ and $v$ are carried down
+unchanged and the height is continued hydrostatically,
+$z_k = z_{k+1} + (R_d\bar T/g)\ln(p_{k+1}/p_k)$.
 
-Substituting \eqref{eq:ghosts} into the end rows of the vertical second
-difference splits them into two parts: a homogeneous part, in which one coupling
-weight is folded onto the diagonal, and a source, in which the boundary
-temperature moves to the right-hand side. With the three-point weights of
-Section~\ref{sec:discretisation} the source is
-\begin{equation}
-\text{contribution to } \ddd{\Phi}{\Pi}\Big|_{k=1} = \frac{\theta_B}{\delta_1},
-\qquad
-\text{at } k=N-2:\ -\frac{\theta_T}{\delta_{N-2}},
-\qquad
-\delta_k=\tfrac12(\Pi_{k+1}-\Pi_{k-1}),
-\end{equation}
-which is consistent with the folding because
-$b^{\text{lo}}_k(\Pi_k-\Pi_{k-1}) = b^{\text{hi}}_k(\Pi_{k+1}-\Pi_k) = 1/\delta_k$
-identically. Since $\Pi$ decreases upward, $\delta_k<0$, so a warm lower
-boundary lowers the static-stability term at the level above it --- which on the
-right-hand side acts like a positive potential-vorticity source, as it should.
+\textbf{The mirror.} The operator is global, so the hemisphere is extended to
+the sphere as an \emph{even} function of latitude, in two passes. The wind is
+first mirrored as the vector it is, $u$ even and $v$ odd, and its vorticity is
+taken; that vorticity is then mirrored as an even scalar, and $\psi$ and the
+rotational wind used downstream are built from it. Height and temperature are
+mirrored evenly from the outset. With every coefficient and source even, the
+operator commutes with the reflection $\varphi\to-\varphi$, the solution is
+exactly even, and its northern half solves the northern problem under a
+condition of no meridional gradient at the equator.
 
-Keeping the folding and the source apart is what allows a piece to be driven by
-one boundary temperature alone: the operator is shared, only the source changes.
-
-The boundary temperature enters \emph{twice}, and the second place is easy to
-miss. Besides the static-stability term, the cross terms of \eqref{eq:E2}
-contain first differences in $\Pi$, and a centred first difference at the first
-interior level reaches the ghost too. Both contributions come from the same
-vertical operator and the same ghost convention, so that they cannot drift
-apart.
-
-\subsection{The streamfunction at the boundaries}
-
-Hydrostatic balance fixes the geopotential. It says nothing directly about the
-streamfunction, so a ghost for $\psi$ is a statement about the flow just outside
-the domain, and the defensible statement is that it is balanced there. Davis and
-Emanuel (1991) apply $\partial\psi/\partial\Pi=-\theta$ at both boundaries and
-justify it by noting that the term involving $\partial\psi/\partial\Pi$ in
-\eqref{eq:sys2} is already small, so a correction accounting for nonlinear
-balance would enter at second order; their solutions are, they report, fairly
-insensitive to the choice. Davis (1992) writes the pair together as
-$\partial\Phi/\partial\Pi = f_0\,\partial\psi/\partial\Pi = -\theta$.
-
-With $f$ varying, this package uses
-\begin{equation}
-\dd{\psi}{\Pi} = -\frac{\theta - \langle\theta\rangle}{f^{*}} ,
-\label{eq:psighost}
-\end{equation}
-where $\langle\cdot\rangle$ is the area mean. Two details in \eqref{eq:psighost}
-are load-bearing.
-
-\emph{The division by $f^{*}$}, because to leading order $\Phi=f\psi$ and
-without it the expression is not dimensionally a streamfunction at all. It is
-performed \emph{before} the horizontal gradient is taken, since $f$ varies with
-latitude and $\grad(g/f)\neq\grad(g)/f$.
-
-\emph{The removal of the area mean}, because the horizontally uniform part of
-the temperature carries no flow and must not reach the streamfunction. Divided
-by $f$ without it, the ghost is of order $10^{8}$~m$^2$~s$^{-1}$ --- larger than
-the streamfunction itself.
-
-The same convention is used everywhere a streamfunction is needed on the two
-outermost rows: in the right-hand side of the linear operator, in the
-nonlinear residual, in the reconstruction of the balanced total state's
-boundary levels after every Newton step, in the reference state the pieces are
-frozen at, in the 1000 and 100~hPa rows of every piece, and in the shear terms
-of the potential-vorticity source when it is evaluated with the operator's
-stencils (Section~\ref{sec:pv}). Any two of them disagreeing leaves a converged
-state failing its own equations. For a piece the ghost is built from that
-piece's own boundary-temperature anomaly --- zero for an interior piece --- so
-the 1000 and 100~hPa rows of a piece are the thermal-wind extension of its
-solved interior and nothing else. Handing those rows the geopotential's ghost
-instead adds a quantity of the wrong dimensions that is numerically small
-enough to pass unnoticed, and the delivered boundary winds of every piece are
-then simply those of the level next to them.
-
-\subsection{Why there is no condition at the side}
-
-On a limited-area domain the elliptic problem needs data on its edge, and the
-choice is awkward. Davis and Emanuel (1991) put it directly: appropriate lateral
-conditions are difficult to determine because the contribution of an individual
-anomaly to the flow at any point is not known in advance. Their approach is to
-choose a domain much larger than the region of interest and apply homogeneous
-lateral conditions to each $\psi_n$ and $\Phi_n$; they note the alternative of
-inverting over a global domain, or at least a hemisphere. Davis (1992) places
-the lateral boundaries more than a Rossby radius from the perturbation of
-interest and applies homogeneous Dirichlet conditions there.
-
-This method takes the alternative. The domain is the whole sphere. There is no
-edge, so there is no lateral condition, no arbitrary distance to choose, and no
-piece that carries the response to an imposed wall. The decomposition is exactly
-the sources.
-
-What a global domain must supply instead is a gauge. The operator has an exact
-null space --- a constant added to $\psi$ on any level carries no wind, and a
-single global constant added to $\Phi$ passes through the vertical stencil ---
-and it must be removed explicitly rather than by a wall.
-Section~\ref{sec:discretisation} describes how.
-
-The lower boundary in particular deserves its status as a piece in its own
-right. Davis (1992, p.~1407) shows that for an anomaly placed at the second
-lowest interior level the rigid lower boundary raises the wind maximum by almost
-50\%, because the isentropes cannot bow upward underneath the anomaly; lowering
-the bottom surface by 4~km restores the free-atmosphere answer. The boundary is
-not a detail of the numerics. It is part of the physics being decomposed.
-
-% =============================================================================
-\section{From a hemisphere to the sphere}
-\label{sec:mirror}
-
-The data cover the northern hemisphere; the operator is global. The extension
-has to do two things: keep the inversion elliptic, and keep the invented
-hemisphere from leaking into the answer.
-
-One construction does both. If every coefficient and every source is an
-\emph{even} function of latitude, and the Coriolis parameter is replaced by an
-even function of latitude, then the operator commutes with the reflection
-$\varphi\to-\varphi$. The solution is then exactly even, and its northern half
-solves the northern problem under a condition of no meridional gradient at the
-equator. The southern half is determined by the northern one and carries no
-information of its own.
-
-\subsection{Two mirrors, with different parities}
-
-Getting there takes two reflections, and the order matters.
-
-\begin{enumerate}
-\itemsep0.15em
-\item \textbf{Mirror the wind as a vector} --- eastward component even,
-northward component odd --- and take the vorticity of the result. This is the
-only parity whose mirrored vorticity agrees with the hemisphere's own.
-\item \textbf{Mirror that vorticity as an even scalar}, then take
-$\psi=\nabla^{-2}\zeta$ and use the rotational wind of that $\psi$ downstream.
-\item \textbf{Mirror height and temperature evenly} from the outset.
-\end{enumerate}
-
-Stopping after step 1 leaves $\zeta$ odd, so $|f|+\zeta$ changes sign across the
-equator, ellipticity is lost in the south, and the scaffold contaminates the
-north at order $\zeta/f$. The wind implied by step 2 is eastward-odd and
-northward-even: the mirror image of a circulation with the \emph{same} sense of
-rotation, which is what $|f|$ describes.
-
-The latitude axis is handled either way round: the northern axis may start on
-the equator, in which case the global axis has $2n-1$ rows, or half a step from
-it, in which case it has $2n$. The solver grid must be symmetric about the
-equator with an even number of rows.
-
-\subsection{The Coriolis floor}
-
-$|f|$ has a corner at the equator, and that corner would appear inside $\grad f$
-in the balance term. It is smoothed:
+\textbf{The Coriolis parameter.} $|f|$ has a corner at the equator that would
+appear inside $\grad f$ in the balance term; it is smoothed,
 \begin{equation}
 f^{*} = 2\Omega\sqrt{\sin^2\varphi + \sin^2\varphi_0},
-\qquad \varphi_0 = 12^\circ \text{ by default}.
+\qquad \varphi_0 = 12^\circ ,
+\label{eq:fstar}
 \end{equation}
-At the equator $f^{*}=3.0322\times10^{-5}$~s$^{-1}$, which is exactly $|f|$ at
-12~N.
+so that $f^{*}=3.0322\times10^{-5}$~s$^{-1}$ at the equator, the value of
+$|f|$ at 12~N.
 
-\subsection{The equatorial taper}
-
-An even mirror is only continuous across the equator where the mean zonal wind
-vanishes there, which in general it does not; what is left is a kink in
-$\tilde\zeta$. The \emph{coefficients} are therefore tapered to their smooth
-equatorial limits across a band: $\tilde\zeta\to0$, $S\to$ its per-level area
-mean, and the four cross-term gradient stacks $\to0$. The weight is a smooth
-step,
+\textbf{The equatorial weight.} The mirrored mean state is continuous but not
+smooth at the equator. The quadratic terms of the operator are multiplied by
+the weight
 \begin{equation}
 w = x^3\left(10 - 15x + 6x^2\right),
 \qquad
-x = \mathrm{clip}\!\left(\frac{|\varphi|-\varphi_S}{\varphi_N-\varphi_S},\,0,\,1\right),
+x = \mathrm{clip}\!\left(\frac{|\varphi|-5^\circ}{20^\circ-5^\circ},\,0,\,1\right),
+\label{eq:weight}
 \end{equation}
-with $\varphi_S=5^\circ$ and $\varphi_N=20^\circ$ by default, so $w$ and its
-first two derivatives are continuous at both ends.
-
-How the weight is applied matters as much as its shape. It multiplies the
-\emph{products} the quadratic terms are built from, not one argument of them.
-In the balance row the tangent of the quadratic part is
-\begin{equation}
-T[\psi'] = w\,\tilde\zeta\,\zeta'
- + w\,s\left[B(\tilde\psi,\psi') - \tilde\zeta\,\zeta'\right],
-\label{eq:tapered}
-\end{equation}
-with $B$ the polarised form \eqref{eq:polarised}, $\tilde\zeta\zeta'$ its
-vorticity part evaluated pointwise, the bracket its deformation-and-curvature
-part in the exact divergence form, and $s$ the deformation limiter of
-Section~\ref{sec:discretisation}, equal to one wherever the limiter is not
-acting. In the potential-vorticity row the stability is tapered towards its
-level mean, $\tilde S\to\langle\tilde S\rangle + w\,(\tilde S-\langle\tilde S\rangle)$,
-and the term that keeps the bilinear form symmetric goes with it: the
-perturbation's own level-mean stratification against the untapered reference
-vorticity, where the taper acts,
-\begin{equation}
-(1-w)\,\tilde\zeta\,\big\langle\Phi'_{\Pi\Pi}\big\rangle .
-\label{eq:partner}
-\end{equation}
-Because $w$ and $s$ are frozen fields multiplying symmetric products, the
-tapered system is still an exact quadratic with a symmetric bilinear form, and
-the midpoint identities \eqref{eq:idquad}--\eqref{eq:idbilin} hold with the
-taper on. Tapering the reference vorticity alone, and rebuilding the reference
-streamfunction from it, gives a row whose two arguments are different flows:
-its bilinear form is not symmetric, the midpoint identity fails inside the
-band, and the frozen operator is no longer the exact finite-increment operator
-there.
-
-The taper is applied to the operator only --- never to $f^{*}$, never to a
-source, never to a solution. That is what keeps the operator identical across
-pieces and leaves the exact closure of Section~\ref{sec:pieces} untouched.
-
-\subsection{What both cost}
-
-Neither is a small correction in the subtropics, and both are set for the
-equator rather than for the region a mid-latitude event can reach:
-
+which is zero equatorward of 5~N, one poleward of 20~N, and twice
+differentiable at both ends. It multiplies the \emph{products} the quadratic
+terms are built from (Step~3), never a source or a solution.
 \begin{center}
+\small
 \begin{tabular}{lrrrrrrrrr}
 \toprule
 latitude [deg N] & 0.5 & 1 & 2 & 5 & 10 & 10.5 & 15 & 20 & 30 \\
 \midrule
 $f^{*}/|f|$ & 23.85 & 11.95 & 6.04 & 2.59 & 1.56 & 1.52 & 1.28 & 1.17 & 1.08 \\
-taper weight $w$ & 0 & 0 & 0 & 0 & 0.21 & 0.26 & 0.79 & 1.00 & 1.00 \\
+weight $w$ & 0 & 0 & 0 & 0 & 0.21 & 0.26 & 0.79 & 1.00 & 1.00 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-At 10.5~N the Coriolis parameter is half as large again as the true one, and
-the operator's quadratic terms carry 26\% of their weight. The ratio is still
-1.04 at 45~N.
+\textbf{The solver grid.} Every product, coefficient and derivative is formed
+on a Gauss--Legendre grid with no pole row and an even number of latitudes, so
+no row lies on the equator. For a triangular truncation $L$ the grid has
+$\lfloor(3L+1)/2\rfloor+1$ latitudes, rounded up to even, and the next power of
+two of at least twice that in longitude: the three-halves rule, which
+represents products of two fields truncated at $L$ without aliasing. Read the
+other way, a grid of $n_{\text{lat}}$ rows carries $L=2n_{\text{lat}}/3-1$:
+$96\times192$ gives T63 (the walkthrough), $128\times256$ gives T84 (the
+catalogue). Scalars move from the data grid to the solver grid through the
+spectrum; winds are carried as $u\cos\varphi$ and $v\cos\varphi$, which are
+band limited where the components are not.
 
-The consequence is a rule, not a caveat: \textbf{nothing about the subtropical
-part of a solution should be quoted as physics without re-running with a smaller
-Coriolis floor and a narrower taper, and reporting how much of it survives.} A
-patch of half-width 30 degrees centred below about 50~N reaches into the band;
-one centred below about 42~N reaches south of the data's own first row into the
-mirrored scaffold, and those rows are returned blank rather than filled with
-reflected weather.
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/fig01_event.png}
+\caption{Step 1, the event: 250\,hPa wind speed and the 500\,hPa height anomaly
+against the climatology, drawn on a 40-degree disc about the centre. The
+difference between the two states is what is decomposed.}
+\label{fig:event}
+\end{figure}
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/fig04_mirror.png}
-\caption{The hemisphere extended to the sphere. Left: the streamfunction on the
-global grid, with the southern half the mirror of the northern. Centre: the
-Coriolis floor, as the ratio $f^{*}/|f|$. Right: the weight applied to the
-operator's coefficients across the equatorial band.}
+\caption{Step 1, the sphere. Left: the 250\,hPa streamfunction on the global
+grid, the southern half the mirror of the northern. Centre: the Coriolis floor
+as the ratio $f^{*}/|f|$. Right: the weight $w$ on the operator's quadratic
+products across the equatorial band.}
+\label{fig:mirror}
 \end{figure}
 
-% =============================================================================
-\section{Discretisation and solution}
-\label{sec:discretisation}
+\subsection{Step 2: Pass A/B, the observed state}
+\label{sec:step2}
 
-\subsection{Two grids}
+\textbf{Streamfunction.} The vorticity is formed from the wind by quadrature
+against the derivatives of the Legendre functions, so the $\tan\varphi$ term of
+\eqref{eq:ops} is carried without being evaluated, and the streamfunction is
+the exact inverse Laplacian, coefficient by coefficient:
+\begin{equation}
+\psi_{nm} = \frac{\zeta_{nm}}{-n(n+1)/a^2}, \qquad n\ge1 ,
+\label{eq:invlap}
+\end{equation}
+with the global constant $n=0$, which carries no wind, set to zero. No
+relaxation and no boundary value enter. On the walkthrough event the
+rotational wind at 250~hPa has 31.0~m~s$^{-1}$ rms over the hemisphere against
+29.8 for the full wind (Figure~\ref{fig:psi}).
 
-Two grid roles are kept apart, and that separation is what makes the poles
-ordinary points.
-
-\begin{center}
-\small
-\begin{tabular}{lll}
-\toprule
-role & grid & what happens on it \\
-\midrule
-data & the file's own grid, poles included & scalar analysis and synthesis only \\
-solver & Gauss--Legendre, no pole row & every product, coefficient and derivative \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Moving between the two is exact for band-limited fields. Winds are carried
-across as $u\cos\varphi$ and $v\cos\varphi$, which are band limited where the
-bare components are not.
-
-The solver grid is sized from the truncation $L$: the number of latitudes is
-$\lfloor (3L+1)/2\rfloor + 1$, rounded up to an even number so that no row lands
-on the equator, and the number of longitudes is the next power of two at least
-twice that. The three-halves rule is deliberate --- both equations are
-quadratic, so products of two fields truncated at $L$ are represented without
-aliasing on a grid carrying $3L/2$. Read the other way, the largest truncation a
-grid of $n_{\text{lat}}$ rows carries without aliasing is $2n_{\text{lat}}/3-1$.
-Collocating instead at the largest truncation the grid can represent aliases
-every product and costs several times the work per solve.
-
-\subsection{Which operations are spectral and which are not}
-
+\textbf{Potential vorticity.} The source \eqref{eq:pvsolved} is evaluated from
+the observed $(\psi,\Phi)$ with the operator's own stencils
+(\code{pv\_source="operator"}, the default), so that the observed pair
+satisfies the discrete potential-vorticity row exactly:
 \begin{itemize}
 \itemsep0.1em
-\item \textbf{Coefficient multiplies:} $\lap$ (multiply by $-n(n+1)/a^2$),
-      $\nabla^{-2}$ (divide, with $n=0$ set to zero), $\partial/\partial\lambda$
-      (multiply by $\mathrm{i}m$).
-\item \textbf{Synthesised to the grid:} the gradient. Its meridional half comes
-      from a table of Legendre combinations built by recursion, so it is regular
-      at the poles.
-\item \textbf{Formed by quadrature:} the divergence and the vorticity of a grid
-      vector field, using the Gaussian weights. This is the integration by parts
-      that carries the $\tan(\text{latitude})$ terms without forming them.
-\item \textbf{Formed pointwise on the grid, then transformed back:} every
-      product --- $(f+\zeta)\grad\psi$, $|\grad\psi|^2$, $A\,\Phi_{\Pi\Pi}$,
-      $S\,\zeta_n$, and the cross terms.
+\item $\Phi_{\Pi\Pi}$ by the three-point non-uniform second difference of the
+      geopotential on all nine levels,
+      \begin{equation}
+      \ddd{F}{\Pi}\bigg|_k = b^{\text{lo}}_k F_{k-1} + b^{\text{c}}_k F_k + b^{\text{hi}}_k F_{k+1},
+      \quad
+      b^{\text{c}}_k = \frac{-2}{\delta^{+}_k\delta^{-}_k},\;
+      b^{\text{hi}}_k = \frac{2}{\delta^{+}_k\delta^{2}_k},\;
+      b^{\text{lo}}_k = \frac{2}{\delta^{-}_k\delta^{2}_k},
+      \label{eq:stencil}
+      \end{equation}
+      $\delta^{+}_k=\Pi_{k+1}-\Pi_k$, $\delta^{-}_k=\Pi_k-\Pi_{k-1}$,
+      $\delta^{2}_k=\Pi_{k+1}-\Pi_{k-1}$; exact for quadratics in $\Pi$, with
+      rows summing to zero;
+\item the boundary temperatures as the hydrostatic differences of that
+      geopotential across the half levels,
+      \begin{equation}
+      \theta_B = -\frac{\Phi_{850}-\Phi_{1000}}{\Pi_{850}-\Pi_{1000}},
+      \qquad
+      \theta_T = -\frac{\Phi_{100}-\Phi_{200}}{\Pi_{100}-\Pi_{200}} ;
+      \label{eq:thetahalf}
+      \end{equation}
+\item the shear terms $\partial\psi/\partial\Pi$ and $\partial\Phi/\partial\Pi$
+      by centred first differences over the interior levels which, at the first
+      and last interior level, reach the operator's ghosts of Step~3 rather than
+      the observed 1000 and 100~hPa fields.
 \end{itemize}
+The limited-area convention, plain centred differences of $\theta$ and of the
+wind over the full level set with the boundary temperature as the mean of the
+two levels beside the half level, is kept as \code{pv\_source="data"}; on the
+walkthrough event the two differ by 5--14\% of the potential vorticity level
+by level and by 1.4~K rms at the bottom boundary and 2.6~K at the top. The
+250~hPa anomaly of the event ranges from $-5.59$ to $8.02$~PVU
+(Figure~\ref{fig:pv}).
 
-\subsection{The vertical stencil}
+\textbf{Input checks.} A run stops if the geopotential decreases with height
+at more than 1\% of points, if $\theta$ decreases with height at more than
+5\%, or if the geopotential and the temperature are not hydrostatically
+consistent: the area mean of the boundary temperature the geopotential implies
+\eqref{eq:thetahalf}, over the mean of the two adjacent levels' $\theta$, must
+lie in 0.7--1.4 at the top. For the walkthrough event and its climatology
+alike the ratio is 1.002 at the bottom and 0.995 at the top.
 
-On the stretched Exner mesh the second derivative uses the standard three-point
-non-uniform formula. With $\delta^{+}_k=\Pi_{k+1}-\Pi_k$,
-$\delta^{-}_k=\Pi_k-\Pi_{k-1}$ and $\delta^{2}_k=\Pi_{k+1}-\Pi_{k-1}$,
-\begin{equation}
-\ddd{F}{\Pi}\bigg|_k = b^{\text{lo}}_k F_{k-1} + b^{\text{c}}_k F_k + b^{\text{hi}}_k F_{k+1},
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/fig02_streamfunction.png}
+\caption{Step 2, the streamfunction recovered from the observed wind at
+250\,hPa (left) and its Laplacian, the relative vorticity (right).}
+\label{fig:psi}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/fig03_pv.png}
+\caption{Step 2, Ertel potential vorticity of the event: the 250\,hPa map and
+a vertical section through the centre longitude, the tropopause visible as the
+crowding of the contours.}
+\label{fig:pv}
+\end{figure}
+
+\subsection{Step 3: Pass C, the total balanced state}
+\label{sec:step3}
+
+The coupled system \eqref{eq:sys1}--\eqref{eq:sys2}, with the observed
+$\hat q$ (floored at 0.01~PVU, the amount added given back to the unclamped
+points by area weight), $\theta_B$ and $\theta_T$ as data, is solved for the
+balanced $(\Phi_{\text{bal}},\psi_{\text{bal}})$ on the seven interior levels
+by Newton's method. Because both rows are quadratic, the Jacobian is the
+linearised operator that the pieces of Step~4 use, evaluated at the current
+iterate.
+
+\textbf{The linearised operator.} At a reference state
+$(\tilde\psi,\tilde\Phi)$, with $\tilde\zeta=\lap\tilde\psi$,
+\begin{align}
+M_1[\Phi',\psi'] &= \lap\Phi' - \grad\cdot\left(f^{*}\grad\psi'\right) - T[\psi'],
 \qquad
-b^{\text{c}}_k = \frac{-2}{\delta^{+}_k\delta^{-}_k},\;\;
-b^{\text{hi}}_k = \frac{2}{\delta^{+}_k\delta^{2}_k},\;\;
-b^{\text{lo}}_k = \frac{2}{\delta^{-}_k\delta^{2}_k}.
-\end{equation}
-It is exact for quadratics in $\Pi$, second-order on a uniform mesh and formally
-first-order on this one. Its rows sum to zero identically, so it annihilates a
-$\Pi$-constant --- which is where the global-constant null direction of the
-system comes from.
-
-\subsection{Scaling of the unknowns and of the rows}
-
-The two equations differ by many orders of magnitude in units alone. Left as
-they are, a single Krylov tolerance on the combined vector is met almost
-entirely by the potential-vorticity row while the balance row stays far from
-converged, at a cost of order a third of a metre of geopotential height. The
-unknown column is therefore taken as $(\Phi,\; f_0\psi)$ with
-$f_0=10^{-4}$~s$^{-1}$, so that geostrophy makes the two comparable, and the
-equation rows as $(r_1,\; (f_0/\bar S_k)\,r_2)$ with $\bar S_k$ the level-mean
-static stability. This is a similarity transform: the solution is unchanged.
-
-\subsection{The gauge}
-
-The operator has an exact null space of dimension $n_{\text{int}}+1$:
-
-\begin{itemize}
-\itemsep0.1em
-\item a constant added to $\psi_n$ on \emph{each} level. It carries no wind, and
-      every term annihilates it.
-\item a \emph{single global} constant added to $\Phi_n$, annihilated because the
-      folded vertical stencil's rows sum to zero and $\lap$ of a constant is
-      zero. A per-level geopotential constant is \emph{not} in the null space.
-\end{itemize}
-
-Both are removed inside the operator, at no extra cost.
-
-The balance equation is a sum of divergences, so its $n=0$ spherical-harmonic
-component vanishes identically for any input: that slot carries no information,
-and it corresponds precisely to the per-level streamfunction constant. It is
-therefore overwritten with the condition itself --- the row returns
-$\psi_n$'s mean and the right-hand side asks for zero --- which pins each
-level's mean streamfunction.
-
-The remaining constant is removed by a rank-one term on the potential-vorticity
-row, proportional to the column mean of $\Phi_n$'s $n=0$ coefficient, with a
-coefficient comparable to the operator's own diagonal but built from the
-Coriolis parameter and the vertical stencil alone, so that it is the same
-number for every reference state. A scale that moved with the reference would
-make that one row bilinear in the state, and the residual's Jacobian inexact
-in that slot. For the same reason the nonlinear iteration removes the observed
-state's level-mean geopotential before its first step: the gauge pins that
-mean to zero, an observed state carries the geopotential of the middle
-troposphere in it, and removing it is a pure gauge shift that carries no wind
-and leaves the first residual and the first line search about the physics.
-
-On a limited-area domain a Dirichlet wall does both of these implicitly, and
-also absorbs any global imbalance between the area-mean potential vorticity and
-the boundary temperature. Globally that imbalance appears instead as a
-compatibility condition on the $n=0$ column; the rank-one gauge term makes that
-column solvable, and the potential-vorticity residual reported at the end is
-where any incompatibility would show.
-
-\subsection{The preconditioner}
-
-Freeze the two coefficients at their per-level area means, $A_k$ and $S_k$, and
-drop the cross and deformation terms. Spherical harmonics then diagonalise the
-horizontal part with $\lambda_n=-n(n+1)/a^2$, and each coefficient obeys a small
-system in the column alone:
+T[\psi'] = w\,\tilde\zeta\,\zeta' + w\,s\left[B(\tilde\psi,\psi') - \tilde\zeta\,\zeta'\right],
+\label{eq:M1}\\[1mm]
+M_2[\Phi',\psi'] &= A\,\ddd{\Phi'}{\Pi} + S\,\lap\psi'
+ - \grad\!\left(\dd{\tilde\psi}{\Pi}\right)\cdot\grad\!\left(\dd{\Phi'}{\Pi}\right)
+ - \grad\!\left(\dd{\tilde\Phi}{\Pi}\right)\cdot\grad\!\left(\dd{\psi'}{\Pi}\right)
+ + (1-w)\,\tilde\zeta\,\big\langle\Phi'_{\Pi\Pi}\big\rangle ,
+\label{eq:M2}
+\end{align}
+with $A=f^{*}+w\tilde\zeta$ the absolute vorticity, $S=\langle\tilde S\rangle +
+w(\tilde S-\langle\tilde S\rangle)$ the static stability $\tilde S=\tilde\Phi_{\Pi\Pi}$
+tapered to its level mean, the reference shear gradients multiplied by $w$, and
+$s$ the deformation limiter below. Poleward of 20~N, $w=1$; with $s=1$ the
+rows are (2.10)--(2.11) of Davis and Emanuel (1991) in divergence form:
+$\lap\Phi'=\grad\cdot[(f^{*}+\tilde\zeta)\grad\psi']+\grad\cdot[(\lap\psi')\grad\tilde\psi]
+-\lap(\grad\tilde\psi\cdot\grad\psi')$. The vertical second difference is
+\eqref{eq:stencil} with the ghosts folded in: substituting
 \begin{equation}
-\lambda_n\Phi - A\lambda_n\psi = r_1 ,
+\Phi_0 = \Phi_1 + \theta_B(\Pi_1-\Pi_0),
 \qquad
-A\,(T\Phi) + S\lambda_n\psi = r_2 ,
+\Phi_{N-1} = \Phi_{N-2} - \theta_T(\Pi_{N-1}-\Pi_{N-2})
+\label{eq:ghosts}
 \end{equation}
-where $T$ is the folded vertical second difference with unit coefficient.
-Eliminating $\psi$ \emph{exactly} leaves one tridiagonal problem per harmonic,
+into the end rows folds one coupling weight onto the diagonal and moves the
+boundary temperature to the right-hand side as $\theta_B/\delta_1$ at the first
+interior level and $-\theta_T/\delta_{N-2}$ at the last. The centred first
+differences inside the cross terms reach the same ghosts, the streamfunction's
+being \eqref{eq:bc}.
+
+\textbf{The residual.} The Newton residual is evaluated through the operator
+itself,
+\begin{equation}
+F(x) = M_{x/2}[x] - b_{x/2},
+\label{eq:Fmid}
+\end{equation}
+the operator frozen at half the state applied to the whole state, less the
+right-hand side assembled at the same half state. For a quadratic system this
+is the exact residual (the midpoint identity of Step~4), and the Jacobian
+$M_x$ is then the derivative of exactly the system the residual measures,
+floors, weight and limiter included.
+
+\textbf{Gauge.} A constant added to $\psi$ on any level carries no wind, and a
+single global constant added to $\Phi$ passes through the vertical stencil, so
+the operator has a null space of dimension $n_{\text{int}}+1$. The balance row
+is a sum of divergences, so its $n=0$ coefficient vanishes identically; that
+slot is overwritten with the level mean of $\psi'$, pinned to zero. A rank-one
+term on the potential-vorticity row, proportional to the column mean of the
+$n=0$ coefficient of $\Phi'$ with a scale built from $f^{*}$ and the vertical
+stencil alone, removes the global constant. The observed state's level-mean
+geopotential is removed before the first step.
+
+\textbf{Scaling.} The unknown column is $(\Phi,\;f_0\psi)$ with
+$f_0=10^{-4}$~s$^{-1}$ and the rows are $(r_1,\;(f_0/\bar S_k)\,r_2)$, $\bar S_k$
+the level-mean static stability, so that a single Krylov tolerance means the
+same thing on both rows. This is a similarity transform.
+
+\textbf{Preconditioner.} Freezing $A$ and $S$ at their level means $A_k,S_k$
+and dropping the cross and deformation terms leaves a system that spherical
+harmonics diagonalise horizontally, $\lambda_n=-n(n+1)/a^2$, and eliminating
+$\psi$ exactly gives one tridiagonal problem per harmonic,
 \begin{equation}
 \left[\mathrm{diag}\!\left(\frac{A^2}{S}\right)T + \lambda_n I\right]\Phi
  = \frac{A}{S}\,r_2 + r_1 ,
 \qquad
-\psi = \frac{1}{A}\left(\Phi - \frac{r_1}{\lambda_n}\right).
+\psi = \frac{1}{A}\left(\Phi - \frac{r_1}{\lambda_n}\right),
+\label{eq:precond}
 \end{equation}
-This is the exact block factorisation of an approximate operator, not a
-block-diagonal approximation of the exact one: it costs the same and is strictly
-stronger. The reduced matrix is negative definite for every $n\ge1$ because $T$
-is negative semi-definite and $\lambda_n<0$, so there is no wavenumber at which
-the preconditioner degrades. The small inverses are dense and are precomputed
-once per event for each $n$. The $n=0$ block is handled separately, using the
-rank-one corrected operator for the geopotential and reading the streamfunction
-mean straight off the balance row.
+$T$ the folded vertical second difference. The reduced matrix is negative
+definite for every $n\ge1$; the inverses are precomputed once per event. The
+$n=0$ block uses the rank-one-corrected operator for $\Phi$ and reads the
+streamfunction mean off the balance row.
 
-The construction fails loudly if any $A_k\le0$ or $S_k\le0$, which is the same
-ellipticity requirement as the system itself.
+\textbf{Linear solve.} One preconditioned GMRES per Newton step, restart 60,
+relative tolerance $10^{-8}$, a budget of 800 operator applications; a solve
+counts as converged only if an independently recomputed $\|b-Mx\|/\|b\|$ is
+below $10^{-7}$.
 
-\subsection{The linear solve}
+\textbf{Floors.} $A\ge10^{-6}$~s$^{-1}$ and $S\ge10^{-4}$ (SI), applied by
+the \code{parity} rule: a value below a tenth of the floor is set to the
+floor. The clamped area fraction per level is reported.
 
-Each piece is one preconditioned Krylov solve. The default is GMRES with restart
-60 and a relative tolerance of $10^{-8}$. The iteration budget is stated as a
-number of operator applications (800 by default) and converted internally to
-restart cycles. A solve is reported as converged only if the solver says so
-\emph{and} an independently recomputed $\|b-Mx\|/\|b\|$ is below
-$\max(10\,\text{rtol},10^{-10})$, which at the defaults is $10^{-7}$. A solve
-that exhausts its budget returns its best iterate and is marked unconverged
-rather than raising, so one difficult piece does not end a run.
-
-\subsection{The nonlinear solve}
-
-The total balanced state is needed before any piece can be defined, because the
-perturbation $\psi'$ that the operator is frozen at is measured from it. It is
-found by Newton's method, and it needs no solver of its own: because both
-nonlinearities are quadratic, the Jacobian of the residual \emph{is} the
-linearised operator \eqref{eq:E1}--\eqref{eq:E2} evaluated at the current
-iterate. The same operator and the same preconditioner are reused.
-
-One step is worth spelling out. The residual is evaluated \emph{through} the
-same code path as the Jacobian, using
-\begin{equation}
-F(x) = J_{x/2}[x] + F(0),
-\end{equation}
-which holds exactly for a quadratic system. Evaluated instead from the pristine
-equations, the residual and the Jacobian describe slightly different systems
-wherever a coefficient has been floored or tapered, and the iteration stalls
-after roughly halving the residual.
-
-The remaining ingredients:
-
-\begin{itemize}
-\itemsep0.1em
-\item \textbf{First guess.} The observed state, with its level-mean
-      geopotential removed (the gauge, above).
-\item \textbf{Inner tolerance.} Fixed: every linear solve is run to the Krylov
-      tolerance of $10^{-8}$. A forcing term of the Eisenstat--Walker kind,
-      which relaxes the inner tolerance while the outer residual is large, is
-      available behind a flag; it measured worse on this problem and is off.
-\item \textbf{Line search.} Backtracking by halves, up to eight times, accepting
-      the first step with
-      $\|F(x+s\delta)\| \le (1-10^{-4}s)\|F(x)\|$. If all eight fail, the failure
-      is recorded and, far from convergence, the deformation limiter (below) is
-      brought in and the step is retaken on the regularised system; only when
-      no tightening is possible is the best step tried applied, which may be
-      no step at all.
-\item \textbf{Stopping rule.} The largest geopotential increment over the
-      interior grid below $0.981$~m$^2$~s$^{-2}$, which is $g$ times $0.1$~m,
-      reached by a step whose line search succeeded --- a small increment
-      produced by a line search that gave up is a stall, not convergence ---
-      with a cap of 20 steps. A run that hits the cap is recorded, not raised,
-      and reports how far short it stopped in metres: a Boolean cannot
-      distinguish an iteration asymptoting a hair above tolerance from one
-      stalled an order of magnitude above it, and the difference decides whether
-      the result is usable.
-\item \textbf{Boundary levels} are rebuilt hydrostatically after every step:
-      $\Phi$ from $\theta$ directly, $\psi$ from \eqref{eq:psighost}.
-\item \textbf{What ``converged'' means physically.} Beside the increment, the
-      report carries the residuals of the equations \emph{as posed} --- without
-      taper, floors or limiter --- at the returned state: the balance residual
-      inverted to a height in metres and the potential-vorticity residual in
-      PVU, each as a global maximum and as a maximum poleward of the taper
-      band, the potential-vorticity one also as an rms there (with a caveat on
-      the balance one, stated in
-      Section~\ref{sec:choices}). It also carries the area fraction per level
-      on which the linearised balance row is not elliptic at the returned
-      state.
-\end{itemize}
-
-\subsection{The deformation limiter}
-\label{sec:limiter}
-
-The linearised balance row is elliptic only where the absolute vorticity of
-the reference flow exceeds its deformation, \eqref{eq:symbol}. On the flanks
-of a strong jet or anticyclone it does not --- over a tenth to a seventh of
-the area of the jet level on the winter events below --- and the linearised
-system is indefinite there. A preconditioned Krylov solve usually gets through
-an indefinite region that small. What it cannot do is carry a Newton iteration
-across a fold of such a system, and an iteration whose path meets one
-oscillates without descending.
-
-The safety net for that case scales the deformation part of the balance row
-alone. With the tangent written as in \eqref{eq:tapered},
+\textbf{Deformation limiter.} Where the reference deformation exceeds the
+absolute vorticity the linearised balance row is not elliptic. The safety net
+scales the deformation part of \eqref{eq:M1} alone,
 \begin{equation}
 s = \min\!\left(1,\ \frac{(1-m)\,A}{w\,\tilde D}\right),
-\qquad m = 0.05 \text{ by default},
+\qquad m = 0.05 ,
 \label{eq:limiter}
 \end{equation}
-so that the symbol \eqref{eq:symbol} becomes $A \mp s\,w\,\tilde D \ge m\,A$
-and the row is elliptic wherever $A$ is positive. The vorticity part
-$\tilde\zeta\zeta'$, which is what gradient-wind balance lives on, is
-untouched. Scaling the whole quadratic part instead, vorticity included, would
-remove the relative vorticity from the effective Coriolis parameter in every
-strain region; it is not what is done.
+so the symbol becomes $A\mp s\,w\,\tilde D\ge mA$ while the vorticity part
+$\tilde\zeta\zeta'$, on which gradient-wind balance rests, is untouched. The
+limiter is a frozen field, one factor per interior level on the grid. By
+default (\code{adaptive}) it starts as one everywhere and is brought in only on
+evidence of a fold: an inner solve that runs out of its budget, a line search
+that fails, or stagnation (three or more halvings with a residual not halved).
+Each refresh takes the pointwise minimum of the limiter in force, the observed
+state's and the current iterate's; at most six refreshes are allowed and each
+is counted. It was needed by 2 of the 50 catalogue events, on at most 17\% of
+a level's area. The pieces take the limiter the total inversion converged with.
 
-The limiter is a frozen field, one factor per interior level on the grid, and
-that is what keeps Newton exact: while it does not change, the residual is one
-quadratic system and the Jacobian is its derivative, and the same $s$ is handed
-to the residual, to the Jacobian and to the half-state operator that
-evaluates $F(x)=J_{x/2}[x]+F(0)$, so the three describe one regularised
-system. By default it starts as one everywhere --- the balance equation as
-posed --- and is brought in only on evidence of a fold: an inner solve that
-runs out of its budget, a line search that fails, or stagnation, meaning three
-or more halvings with a residual that has not fallen by half. Every refresh
-takes the pointwise minimum of the limiter in force, the observed state's
-limiter --- which covers every strain-dominated region the data hold --- and the
-current iterate's own. Refreshes only ever lower it, at most six are
-allowed in one solve, each is counted and reported, and a failed line search
-at rounding level does not trigger one. Two other policies are available:
-decide the limiter once from the observed state before the first step, or
-never limit. The pieces take the limiter the total inversion converged with,
-so their operator is the tangent of the same regularised system at its
-midpoint.
+\textbf{Line search and stopping.} Backtracking by halves, at most eight
+times, accepting the first step with
+$\|F(x+\sigma\delta)\|\le(1-10^{-4}\sigma)\|F(x)\|$; if none passes, the best
+step tried is applied. After every step the two boundary levels are rebuilt
+from \eqref{eq:ghosts} and \eqref{eq:bc}. The iteration stops when the largest
+geopotential increment over the interior grid is below $0.981$~m$^2$~s$^{-2}$
+($g\times0.1$~m) and that step's line search succeeded, with a cap of 20
+steps. Beside the increment, the report carries the residuals of the equations
+\emph{as posed} (no weight, floors or limiter) at the returned state: the
+balance row inverted to a height in metres and the potential-vorticity row in
+PVU, globally and poleward of 20~N, together with the area fraction per level
+on which the linearised balance row is not elliptic there.
 
-Where the limiter acts, the solved balance equation is the Davis--Emanuel
-equation with a fraction $1-s$ of its deformation-and-curvature part removed
-at those points, and the balance residual reported against the posed equation
-shows exactly that. The area fraction per level on which $s<1$ is published
-with every run, for the total inversion and for the pieces.
-
-What this buys is measured on the walkthrough event and on the fifty winter
-blocking events of the catalogue example (Section~\ref{sec:running}). The
-walkthrough event converges in five Newton steps, with increments of 308,
-21.6, 1.50, 0.12 and 0.037~m and no backtracking at any step; the limiter is
-never brought in, no inner solve stops short of its tolerance, and the balance
-equation is solved exactly as posed, although the linearised row is not
-elliptic at the returned state on 1.5\% of the area at 850~hPa rising to 14\%
-at 300~hPa. Of the fifty catalogue events, at truncation 84, all converge:
-45 in four Newton steps, three in five, and two --- the ones that meet a fold,
-one of them through an inner solve that ran out of its budget --- bring the
-limiter in once and finish in nine and ten steps, with the limiter acting on
-at most 17\% of a level's area. Read locally, the balanced state of the
-walkthrough satisfies the posed balance equation poleward of the taper band
-to $1$--$4\times10^{-7}$~s$^{-1}$ of equivalent vorticity, in the
-strain-dominated region as much as outside it, against an imbalance of
-$1.4$--$2.5\times10^{-5}$~s$^{-1}$ in the observed state; the posed
-potential-vorticity equation is met to 0.0040~PVU rms poleward of 20~N, and
-to 0.0019--0.0079~PVU rms across the fifty catalogue events.
-
-Uniqueness of the converged state is an empirical claim, not a proved one. Davis
-and Emanuel (1991, p.~1935) report that as long as the potential vorticity was
-everywhere positive their iteration consistently converged, and that tests with
-different initial guesses showed the solution obtained was apparently unique, or
-at least that other solutions were unreachable. That is the standing of the
-statement here as well.
-
-\subsection{Cost}
-
-Measured at truncation 63 on a $96\times192$ solver grid with nine levels: a
-preconditioned solve of a manufactured problem converges in 34 GMRES
-iterations to $10^{-10}$ relative; the walkthrough event's Newton iteration
-converges in five steps, and each of its nine pieces in 44--61 Krylov
-iterations. One operator application is a handful of spectral transforms,
-which are dense matrix products, so its wall time depends on the BLAS threading
-and on what else the machine is doing: about 80~ms with one BLAS thread on a
-node shared with several hundred other processes, which is an upper bound, and
-several times longer with eight threads on the same node, where the threads
-only contend. The walkthrough's total and piecewise inversion, run with eight
-BLAS threads on that loaded node, took about ten minutes; the fifty catalogue
-events at truncation 84 on a $128\times256$ grid, one BLAS thread each, took
-12 minutes on 25 workers, with the two events that brought the limiter in
-finishing last.
+\textbf{Numbers.} The walkthrough event converges in five steps with
+increments of 308, 21.6, 1.50, 0.12 and 0.037~m (Figure~\ref{fig:convergence}),
+no backtracking, no inner solve short of tolerance and the limiter never
+brought in; the posed potential-vorticity equation is met to 0.0040~PVU rms
+poleward of 20~N, the posed balance equation to $1$--$4\times10^{-7}$~s$^{-1}$
+of equivalent vorticity there, and the linearised balance row is not elliptic
+at the returned state on 1.5\% of the area at 850~hPa rising to 14.1\% at
+300~hPa. Across the fifty catalogue events at T84, 45 converge in four steps,
+three in five, and the two that meet a fold bring the limiter in once and
+finish in nine and ten; the potential-vorticity residual poleward of 20~N is
+0.0043~PVU rms at the median, 0.0019 to 0.0079 across events.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth]{figures/fig05_convergence.png}
-\caption{The nonlinear iteration and the Krylov counts. Left: the Newton
-increment, in metres of geopotential height, against the 0.1~m tolerance.
-Right: the number of Krylov iterations taken by each of the nine pieces, all
-solved against one frozen operator.}
+\includegraphics[width=0.9\linewidth]{figures/fig05_convergence.png}
+\caption{Step 3, the nonlinear iteration on the walkthrough event: the Newton
+increment in metres of height against the 0.1\,m tolerance (left), and the
+Krylov iterations of the nine piece solves of Step~4 against the one frozen
+operator (right).}
+\label{fig:convergence}
 \end{figure}
 
-% =============================================================================
-\section{The wind induced by each level}
-\label{sec:perlevel}
+\subsection{Step 4: Pass D, the pieces}
+\label{sec:step4}
 
-This is the result. Each panel of Figure~\ref{fig:perlevel} is the rotational
-wind at 250~hPa that would exist if the only anomaly in the atmosphere were the
-one on that level, with everything else at its climatological value. Seven of
-the nine sources are interior potential-vorticity anomalies; two are boundary
-potential-temperature anomalies.
+\textbf{The frozen operator.} The perturbation is measured from the observed
+climatological mean, $\psi'=\psi_{\text{bal}}-\bar\psi$,
+$\Phi'=\Phi_{\text{bal}}-\bar\Phi$, and the operator
+\eqref{eq:M1}--\eqref{eq:M2} is frozen once at the midpoint,
+\begin{equation}
+\tilde\psi = \bar\psi + \tfrac12\psi' ,
+\qquad
+\tilde\Phi = \bar\Phi + \tfrac12\Phi' ,
+\qquad
+A = f^{*}+w\tilde\zeta,
+\qquad
+\tilde S = \ddd{\tilde\Phi}{\Pi},
+\label{eq:midpoint}
+\end{equation}
+its two boundary levels rebuilt as the ghosts \eqref{eq:ghosts}, \eqref{eq:bc}
+of the midpoint temperature $\bar\theta+\tfrac12\theta'$. For a quadratic
+nonlinearity $N$ and a bilinear $B$ the midpoint linearisation is an identity,
+\begin{align}
+N(\bar x + x') - N(\bar x) &= DN\!\left(\bar x + \tfrac12 x'\right)\!\left[x'\right],
+\label{eq:idquad}\\
+B(\bar x + x',\,\bar y + y') - B(\bar x,\bar y)
+ &= B\!\left(x',\,\bar y + \tfrac12 y'\right)
+  + B\!\left(\bar x + \tfrac12 x',\,y'\right),
+\label{eq:idbilin}
+\end{align}
+so $M_{\tilde x}$ applied to the full perturbation returns exactly the
+difference between the nonlinear system at the total state and at the mean.
+Because $w$ and $s$ multiply symmetric products, the identities hold with the
+weight and the limiter on. This is the full-linear method of Davis (1992):
+the pieces of this operator sum to the all-sources solve by construction.
 
-Two things to know before reading amplitudes off such a figure.
+\textbf{The sources.} Nine, one per piece: the potential-vorticity anomaly on
+each of the seven interior levels, with $\theta_n=0$ on both boundaries, and
+the temperature anomaly on each boundary, with $\hat q_n=0$ in the interior.
+The interior anomaly is the difference of the event and mean fields floored
+\emph{separately} at $10^{-5}$~PVU; the boundary anomalies are plain
+differences. The right-hand side of a piece is linear in its source:
+\begin{equation}
+b_1 = 0,
+\qquad
+b_2 = \hat q_n
+ - A\,\Theta_n
+ - (1-w)\,\tilde\zeta\,\big\langle\Theta_n\big\rangle
+ + \grad\!\left(\dd{\tilde\psi}{\Pi}\right)\cdot\grad\Phi^{\text{gh}}_{n}
+ + \grad\!\left(\dd{\tilde\Phi}{\Pi}\right)\cdot\grad\psi^{\text{gh}}_{n},
+\label{eq:rhs}
+\end{equation}
+$\Theta_n$ the folded boundary source ($\theta_{B,n}/\delta_1$,
+$-\theta_{T,n}/\delta_{N-2}$) and $\Phi^{\text{gh}}_n$, $\psi^{\text{gh}}_n$
+the ghost parts of the first differences inside the cross terms, the
+streamfunction's built by \eqref{eq:bc} from the piece's own boundary anomaly.
+The boundary temperature therefore enters twice, through the stability term
+and through the shear terms, from one vertical operator.
 
-\textbf{The two outermost levels of every piece are hydrostatic extensions, not
-solved levels.} Their values are the level next to them plus a boundary
-temperature term: the geopotential's from hydrostatic balance, the
-streamfunction's from the thermal-wind ghost \eqref{eq:psighost} built on that
-piece's own boundary-temperature anomaly. Interior levels are the solved ones,
-and an amplitude quoted on the 1000 or 100~hPa row of a piece is the extension
-of its solved interior, not an independent result.
+\textbf{One linear solve per piece.} Each piece is one preconditioned GMRES
+solve against the same operator and the same preconditioner, with the Krylov
+settings of Step~3; on the walkthrough event the nine pieces take 44 to 61
+iterations (Figure~\ref{fig:convergence}, right). The solved interior is
+extended to the two boundary levels hydrostatically: $\Phi_n$ by
+\eqref{eq:ghosts} and $\psi_n$ by the thermal-wind ghost \eqref{eq:bc}, both
+from the piece's own boundary anomaly, zero for an interior piece.
 
-\textbf{A large piece is not necessarily a relevant one.} The top-boundary
-piece is the largest single piece of the walkthrough event: 14.7~m~s$^{-1}$
-rms at 250~hPa over the northern hemisphere, against 11.7 for the 200~hPa
-piece, 10.3 for 250~hPa, 7.2 for 300~hPa, and 21.1 for the observed anomaly.
-A planetary-scale temperature anomaly at the top boundary has a Rossby depth
-exceeding the domain, so its response is deep and nearly barotropic, and part
-of it cancels against the interior upper-level pieces: the upper group of
-Section~\ref{sec:groups}, which contains all five, comes to 20.7~m~s$^{-1}$,
-below the root-sum-square of its members. Amplitude and projection are
-different questions and should be reported separately; how much of the top
-boundary's response is physical and how much belongs to where the lid is
-placed is a question the decomposition itself does not answer.
+\textbf{Induced wind.} From each piece's streamfunction, spectrally:
+$u_n=-\py\psi_n$, $v_n=\px\psi_n$, with $u\cos\varphi$ and $v\cos\varphi$
+synthesised from a table of Legendre combinations that divides by nothing.
+For the walkthrough event the rms of the 250~hPa wind induced by each piece over
+the hemisphere is
+\begin{center}
+\small
+\begin{tabular}{lccccccccc}
+\toprule
+piece & 1000 $\theta$ & 850 & 700 & 500 & 400 & 300 & 250 & 200 & 100 $\theta$ \\
+\midrule
+rms [m~s$^{-1}$] & 3.83 & 2.07 & 1.80 & 1.91 & 3.19 & 7.21 & 10.29 & 11.73 & 14.66 \\
+\bottomrule
+\end{tabular}
+\end{center}
+against an observed anomaly of 21.09~m~s$^{-1}$ (Figure~\ref{fig:perlevel}).
+The top-boundary piece is the largest single piece: a planetary-scale
+temperature anomaly at the lid has a deep, nearly barotropic response, part of
+which cancels against the interior upper-level pieces.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth]{figures/fig06_per_level.png}
-\caption{The wind at 250~hPa induced by each level. Shading is the source that
-drives the piece --- potential vorticity on the seven interior levels, potential
-temperature on the two boundaries --- and the arrows are the rotational wind it
-induces at 250~hPa. The arrow scale is set panel by panel and written on each
-one.}
+\includegraphics[width=0.74\linewidth]{figures/fig06_per_level.png}
+\caption{Step 4, the wind at 250\,hPa induced by each source. Shading is the
+source that drives the piece, potential vorticity on the seven interior levels
+and potential temperature on the two boundaries; arrows are the rotational
+wind it induces at 250\,hPa, with the arrow scale set panel by panel.}
 \label{fig:perlevel}
 \end{figure}
 
-% =============================================================================
-\section{Grouping the pieces}
-\label{sec:groups}
+\subsection{Step 5: grouping and the scale split}
+\label{sec:step5}
 
-Nine panels is more than the eye can hold, and the usual question is coarser:
-how much of the upper-level flow came from below, and how much from the upper
-troposphere? Because the pieces are linear in their sources, groups are simply
-sums of pieces, exactly:
-
+\textbf{Groups.} Pieces are linear in their sources, so groups are sums of
+pieces, exactly, formed after the solve:
 \begin{center}
+\small
 \begin{tabular}{ll}
 \toprule
 group & sources \\
@@ -1616,318 +663,318 @@ upper & potential vorticity at 400, 300, 250, 200~hPa and the 100~hPa boundary \
 \bottomrule
 \end{tabular}
 \end{center}
+On the walkthrough event they come to 3.83, 3.68 and 20.68~m~s$^{-1}$ rms at
+250~hPa (Figure~\ref{fig:groups}).
 
-The three groups exhaust the sources, so they sum to the same thing the nine
-panels do. Any other partition of the nine works the same way, and it is done
-after the solve, at no cost.
-
-A group may also be defined by something other than a level list --- by
-horizontal scale, say, or by a mask around the event. When it is, the split must
-be applied to the \emph{source} and it must be additive: the parts must sum to
-the whole source. A multiplicative mask applied to a solution does not close.
-For the same reason, a group defined by scale must split every source it carries,
-including the boundary temperature, not only the interior potential vorticity.
+\textbf{Planetary and eddy.} With \code{--pieces scale} the upper source is
+split further by horizontal scale into \code{upper\_p} and \code{upper\_e},
+and the split is applied to the \emph{source}, additively, so that the parts
+still sum to the piece they came from:
+\begin{enumerate}
+\itemsep0.1em
+\item the upper-level anomaly (400--200~hPa) is filtered on the whole circle to
+      zonal orders 1--4, a selection of spherical-harmonic orders;
+\item the object is seeded at the most negative filtered point within
+      $\pm10^\circ$ latitude and $\pm20^\circ$ longitude of the tracked centre,
+      and the contour is 0.35 of the local minimum there;
+\item the object is the three-dimensional six-connected component of the
+      filtered field below that contour holding the seed, sought inside the
+      event's $\pm30^\circ\times\pm60^\circ$ box, whose columns run around the
+      circle;
+\item the masked field is filtered again to orders 1--4; that is the planetary
+      part, and the eddy part is the remainder of the upper anomaly;
+\item the top boundary temperature is split the same way, with the mask of the
+      highest interior level.
+\end{enumerate}
+The four pieces \code{surface}, \code{lower}, \code{upper\_p}, \code{upper\_e}
+then exhaust the sources; the contour, the local minimum and the object's area
+fraction are written to the output metadata.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/fig07_groups.png}
-\caption{The pieces grouped into surface, lower and upper contributions, beside
-the observed anomalous rotational wind at 250~hPa. Colour and arrow scales are
-set panel by panel; the numbers in the titles are what to compare across
-panels.}
+\caption{Step 5, the pieces grouped into surface, lower and upper
+contributions to the 250\,hPa rotational wind, beside the observed anomalous
+rotational wind. Colour and arrow scales are set panel by panel; the rms in
+each title is what to compare.}
+\label{fig:groups}
 \end{figure}
 
-% =============================================================================
-\section{Closure, and what is left over}
-\label{sec:closure}
+\subsection{Step 6: closure and residual}
+\label{sec:step6}
 
-Two checks close the calculation, and they are different in kind.
+\textbf{Closure.} The sum of the nine pieces is compared with the solve that
+has all nine sources present at once; the two agree to rounding, because
+every piece is $M^{-1}b_n$ against one operator and $\sum_n M^{-1}b_n =
+M^{-1}\sum_n b_n$. On the walkthrough event the relative difference is
+$1.7\times10^{-8}$, on the 79~N event of Step~7 $5.1\times10^{-9}$. This is
+checked on every run.
 
-\textbf{The arithmetic check.} The nine pieces must reproduce the inversion of
-all the sources at once. This is not an approximation to be assessed: it follows
-from the four facts of Section~\ref{sec:pieces} and holds to the solver's
-tolerance --- $1.7\times10^{-8}$ relative on the walkthrough event,
-$5\times10^{-9}$ on the event of Section~\ref{sec:polar}. If it did not hold,
-the decomposition would mean nothing, so it is worth checking on every run
-rather than trusting.
+\textbf{Residual.} The sum of the pieces against the \emph{observed} anomalous
+rotational wind leaves the part the balance equations do not represent: the
+anomaly of the unbalanced and divergent flow. It is not a wall response, there
+being no wall, and it is stored under its own name. On the walkthrough event
+the pieces sum to 20.01~m~s$^{-1}$ rms at 250~hPa over the hemisphere against
+an observed anomaly of 21.09, leaving 3.10~m~s$^{-1}$, 15\% of the anomaly
+(Figure~\ref{fig:closure}); at 79~N the figures are 19.10 against 20.25,
+leaving 4.17, or 21\%. Over the fifty catalogue events, on the common patch at
+400--200~hPa, the residual is 0.26~m~s$^{-1}$ of a 10.12~m~s$^{-1}$ anomaly,
+2.6\%.
 
-\textbf{The physical check.} The sum of the pieces against the \emph{observed}
-anomalous rotational wind. What is left over is the part the balance equations
-do not represent: the anomaly of the divergent and unbalanced flow. It is not
-an error and it is not a wall response --- there is no wall. Its size is a
-property of the event and is worth reporting: on the walkthrough event the
-pieces sum to 20.0~m~s$^{-1}$ rms at 250~hPa over the northern hemisphere
-against an observed anomaly of 21.1, leaving 3.1~m~s$^{-1}$, 15\% of the
-anomaly; on the event of Section~\ref{sec:polar} the figures are 19.1 against
-20.3, leaving 4.2, or 21\%.
-
-Three quantities are worth keeping apart here, and the walkthrough event puts
-a number on each. The pieces sum to the all-sources linear solve, exactly.
-They do not sum to the difference between the balanced total state and the
-observed mean state: the frozen operator is the exact finite-increment
-operator between the mean and the total, but the mean enters as observed
-rather than balanced (Section~\ref{sec:system}), so the balanced perturbation
-satisfies the frozen system with the mean state's own balance residual as an
-extra source, and the pieces --- driven by the potential-vorticity and
-boundary-temperature anomalies alone --- miss it by the response to that
-imbalance: 4.1~m~s$^{-1}$ rms at 250~hPa. The balanced total state, in turn,
-misses the observed rotational wind by 5.0~m~s$^{-1}$ rms out of 31.0, which
-is the departure of the event itself from balance. What is left over after
-the pieces, the 3.1~m~s$^{-1}$ above, is the difference of the two: the
-event's imbalance less the response to the mean's. It is smaller than either
-because the two departures from balance are alike and largely cancel in the
-anomaly. The leftover is stored under its own name rather than distributed
-over the pieces.
+\textbf{What the pieces close against.} Three quantities are kept apart. The
+pieces sum to the all-sources linear solve exactly. They differ from the
+balanced perturbation $\psi_{\text{bal}}-\bar\psi$ by the response to the
+mean state's own imbalance, because the mean enters as observed rather than
+balanced: 4.14~m~s$^{-1}$ rms at 250~hPa on the walkthrough event. And the
+balanced total state differs from the observed rotational wind by the event's
+own departure from balance: 4.97~m~s$^{-1}$ out of 30.99. The residual above
+is the difference of the last two.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/fig08_closure.png}
-\caption{The sum of the pieces, and what is left over. Left: the observed
-anomalous rotational wind at 250~hPa. Centre: the sum of the nine pieces.
-Right: the difference, which is the unbalanced and divergent part.}
+\caption{Step 6, the observed anomalous rotational wind at 250\,hPa (left),
+the sum of the nine pieces (centre), and what is left over, the unbalanced and
+divergent part (right).}
+\label{fig:closure}
 \end{figure}
 
-% =============================================================================
-\section{The same calculation at 79 N}
-\label{sec:polar}
+\subsection{Step 7: output on any patch}
+\label{sec:step7}
 
-Nothing in Sections~\ref{sec:exner} to \ref{sec:closure} refers to where the
-event is. The operators are global, the grid has no pole row, no metric factor
-is divided by, and there is no box to draw. An event at 79~N, half of whose
-surroundings lie across the pole, is inverted by the same calculation in the
-same number of Newton steps as one at 43~N: five, to a final increment of
-0.003~m, with the limiter never brought in, the pieces reproducing the
-all-sources inversion to $5\times10^{-9}$, and 4.2~m~s$^{-1}$ of a
-20.3~m~s$^{-1}$ anomaly, 21\%, left over as the unbalanced part.
+Nothing in Steps~1--6 refers to where the event is: the operators are global,
+the grid has no pole row and no metric factor is divided by. The Greenland
+event at 79~N that ships with the package is inverted by the same calculation
+in five Newton steps to a final increment of 0.003~m
+(Figure~\ref{fig:polar}). Two croppings are written.
 
-Two practical points about output near the pole.
+\textbf{The geographic patch.} An event-centred box of half-widths
+$30^\circ\times60^\circ$ on the data's own regular grid, longitudes wrapped.
+Rows past the pole are NaN, because a column of the box carries one longitude
+and the far side of the pole belongs to another. The pole row itself is NaN
+($|\cos\varphi|\le10^{-8}$): the wind is defined there but its eastward and
+northward components are not. Rows south of the data's first row, the mirror
+scaffold, are NaN as well. The two-dimensional fields are the column average
+over 400--200~hPa weighted by $\exp(-z/H)$, $H=7000$~m, divided by the weight
+of the valid levels only.
 
-The eastward and northward \emph{components} of a wind are undefined exactly at
-the pole --- their values depend on the meridian one approaches along --- even
-though the wind itself is perfectly well defined there. Output rows where
-$|\cos\varphi|\le10^{-8}$ are therefore returned as missing rather than filled
-with a number that pretends otherwise.
+\textbf{The rotated patch} (\code{--rotated-track}). The frame is rotated so
+that the centre sits on its equator; the wind is carried as its Cartesian
+components, which are smooth across the pole, sampled by cubic interpolation
+on the rotated grid and rotated into the local frame. The patch is complete
+for any centre, the pole included, and has the same shape for every event.
+Figure~\ref{fig:polarcap} shows both croppings of two events at 55 and 80~N.
 
-For cropping a patch around a near-polar event, a rotated frame is available:
-the frame is rotated so the event sits at the pole of the projection and a disc
-of fixed great-circle radius is cut. A geographic latitude--longitude box
-centred at 79~N is largely empty because those rows lie past the pole; the
-rotated patch is complete, with the same peak amplitude.
+\textbf{The key contract.} One compressed \code{npz} per event, keys named
+so that a loader enumerating pieces by the prefix \code{u\_rot\_anom\_ppvi\_}
+counts exactly the pieces:
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{5.6cm}L}
+\toprule
+key & content \\
+\midrule
+\code{u/v\_rot\_anom\_ppvi\_\{piece\}}, \code{\ldots\_3d} & wind induced by one piece: the 400--200~hPa column average, and all nine levels; \code{piece} is \code{1000}, \code{850}, \ldots, \code{100} or \code{surface}, \code{lower}, \code{upper\_p}, \code{upper\_e} \\
+\code{u/v\_rot\_anom\_residual\_ppvi}, \code{\ldots\_3d} & observed anomaly less the sum of the pieces: the unbalanced part \\
+\code{u/v\_rot\_anom}, \code{\ldots\_3d} & the observed anomalous rotational wind the pieces account for \\
+\code{pv\_anom\_wu\_3d} & the potential-vorticity anomaly in SI, boundary levels NaN \\
+\code{lat\_vec}, \code{lon\_vec}, \code{lat\_rel}, \code{lon\_rel} & patch axes, absolute and relative to the centre \\
+\code{\ldots\_3d\_rot}, \code{lat\_rel\_rot}, \code{lon\_rel\_rot} & the rotated-frame patch, when requested \\
+\code{meta\_*} & \code{pieces\_mode}, \code{pv\_source}, \code{deformation\_limiter}, \code{centre\_lat/lon}, \code{levels}, \code{level\_pressures}, \code{piece\_names}, \code{solver\_grid}, \code{lmax}; \code{newton\_steps}, \code{newton\_converged}, \code{newton\_final\_increment\_m}, \code{newton\_final\_balance\_m(\_extratropics)}, \code{newton\_final\_pv\_pvu(\_extratropics)}, \code{newton\_final\_pv\_pvu\_rms\_extratropics}, \code{newton\_deformation\_fraction}, \code{newton\_limiter\_refreshes}, \code{newton\_final\_nonelliptic\_fraction}, \code{piece\_deformation\_fraction}, \code{linear\_iterations}, \code{inner\_solves\_unconverged}, \code{all\_pieces\_converged}; \code{clamp\_worst\_fraction}, \code{pv\_floor\_fraction\_event/mean}; with \code{--pieces scale} also \code{split\_q\_min}, \code{split\_contour}, \code{split\_object\_fraction}, \code{split\_top\_fraction} \\
+\bottomrule
+\end{tabularx}
+\end{center}
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/fig09_polar.png}
-\caption{The same calculation for an event at 79~N. The white circle is the
-North Pole, which is an ordinary point inside the picture.}
+\caption{Step 7, the same calculation for the Greenland event at 79\,N: the
+250\,hPa wind induced by the surface, lower and upper groups, and the observed
+anomaly, on a 40-degree disc about the centre. The white circle is the North
+Pole, an ordinary point inside every panel.}
+\label{fig:polar}
 \end{figure}
 
+\subsection{Step 8: a catalogue}
+\label{sec:step8}
+
+\begin{verbatim}
+pvinv-sph catalogue.csv --out-dir results/ --workers 25 --pieces scale
+\end{verbatim}
+The catalogue is a CSV with columns \code{event\_id}, \code{state\_path},
+\code{state\_index}, \code{clim\_path}, \code{clim\_index}, \code{lat},
+\code{lon}, checked before the run starts. Each event is one process with the
+linear algebra held to one BLAS thread; the file is written to a temporary
+name and renamed, so an interrupted run leaves no half file, and
+\code{--skip-existing} resumes it. A failure is recorded per event rather than
+raised. The fifty winter blocking peaks of the composite example, at T84 on a
+$128\times256$ grid, took 12.0~minutes on 25 workers, 50 of 50 converged, 4
+Newton steps at the median; one event takes 90--130~s at T84 on one core,
+3.2~minutes in the truncation sweep of that example.
+
 % =============================================================================
-\section{The choices, and what they cost}
-\label{sec:choices}
+\section{Old and new side by side}
+\label{sec:oldnew}
 
-This section collects every place where the solved system is not the system as
-posed, with numbers.
-
-\subsection{Modifications in a band around the equator}
-
-Two of them, both described in Section~\ref{sec:mirror} and both on by default.
+The windowed chain (the Wu/Davis Fortran driven through \code{pvtend.ppvi})
+and this package solve the same system \eqref{eq:sys1}--\eqref{eq:sys2} with
+the same boundary conditions and the same midpoint linearisation. The Fortran
+alternates a two-dimensional streamfunction relaxation per level with a
+three-dimensional geopotential relaxation; here the coupled system is solved
+at once by Newton--Krylov. Same solution, different solver, domain and
+discretisation:
 
 \begin{center}
 \small
-\begin{tabular}{lll}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.5cm}LL}
 \toprule
-what & default & effect \\
+ & windowed chain & this package \\
 \midrule
-Coriolis floor $\varphi_0$ & $12^\circ$ & $f^{*}/|f| = 1.52$ at 10.5~N, 1.17 at 20~N, \\
- & & 1.08 at 30~N, 1.04 at 45~N \\
-taper band & $5^\circ$--$20^\circ$ & the quadratic terms weighted by 0.26 at 10.5~N, \\
- & & by 1 above 20~N \\
+domain and lateral boundary &
+fixed band 10.5--85.5~N, a $\pm90^\circ$ longitude window about the event;
+homogeneous Dirichlet walls; lateral condition \code{ibc} 0 (homogeneous), 1
+(full perturbation on the walls) or 2 (nested per-piece walls); the wall
+response carried as a piece of its own &
+the closed sphere: no wall, no wall piece, no \code{ibc}; the hemisphere
+mirrored evenly with $f^{*}$, so the northern half solves the northern problem
+under a Neumann equator \\
+\midrule
+horizontal discretisation &
+five-point latitude--longitude finite differences with $\cos\varphi$ factors &
+spherical harmonics on a Gaussian grid (T63, T84); every metric term inside the
+transforms, no $\tan\varphi$ or $1/\cos\varphi$ evaluated \\
+\midrule
+balance equation &
+plane form $\grad\cdot(f\grad\psi) + 2(\psi_{xx}\psi_{yy}-\psi_{xy}^2)$ &
+exact spherical form \eqref{eq:Nform}, which carries the curvature term
+$-|\grad\psi|^2/a^2$ of \eqref{eq:curvature}, about 2\% of the balance terms in
+a mid-latitude jet \\
+\midrule
+potential-vorticity source &
+centred differences of $\theta$ and of the total wind shear over the full level
+set; boundary $\theta$ the mean of the two levels beside the half level &
+the operator's own stencils applied to $z$: \eqref{eq:stencil} for
+$\Phi_{\Pi\Pi}$, shear terms with the ghosts, boundary $\theta$ by
+\eqref{eq:thetahalf}; the data satisfy the potential-vorticity row exactly
+(5--14\% apart level by level on the walkthrough event) \\
+\midrule
+Pass C solver &
+alternation: a two-dimensional $\psi$ Poisson sweep per level with the
+geopotential held, then a three-dimensional $\Phi$ SOR sweep, relaxation
+factors 1.4, the coupling lagged with \code{PART}$=0.05$ under-relaxation
+between sweeps; a pass is converged when no point changes by more than a
+threshold in a sweep, a test on the change rather than on the residual &
+Newton--Krylov on the coupled system: the Jacobian is the piecewise operator,
+one preconditioned GMRES per step, line search; converged on the increment
+($<0.1$~m after a successful line search) with the residuals of the posed
+equations reported in metres and PVU \\
+\midrule
+Pass D &
+SOR per piece with the discrete elimination weights \code{ASI}, \code{BSI},
+\code{APHI}, \code{BI}, which carry the five-point diagonal; \code{INLIN}$=1$
+midpoint coefficients &
+one GMRES per piece against the same frozen operator; the midpoint
+linearisation exact for the quadratic system, so the pieces sum to the
+all-sources solve to $10^{-8}$ \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{center}
-
-Inside that band the frozen operator is the exact finite-increment operator of a
-\emph{modified} system, not of the equations as posed. Measured on a global
-synthetic case that needs no taper at all, turning the taper on leaves about half
-a metre of equivalent geopotential height in the converged state; with it off on
-a mirrored state, the kink at the equator acts as a vortex sheet and rings.
-
-A solution quoted anywhere in that band must be checked against a run with a
-smaller floor and a narrower taper.
-
-That check is a requirement, not a suggestion, and its outcome is not the one
-that might be expected. Narrowing the band makes the answer worse, not better.
-Measured over the southern third of an event patch --- the part that reaches
-into the band --- the residual against the observed anomalous rotational wind
-is smallest with the default band and floor, larger with a band of
-$2^\circ$--$8^\circ$ and a floor of $4^\circ$, and largest with no taper at
-all. A narrow band leaves the kink at the
-equator inside the operator's coefficients, and a small floor leaves $\grad f^{*}$
-nearly discontinuous there; both radiate into the subtropics. The rule is
-therefore to run both configurations and report both, not to treat the smaller
-floor as the truthful one.
-
-Inside the band the taper is a weight on the operator's products,
-\eqref{eq:tapered}--\eqref{eq:partner}, so the tapered system is itself an
-exact quadratic: the midpoint identity holds with the taper on, the frozen
-operator is the exact finite-increment operator of the tapered system, and the
-sum-closure is untouched. What the taper costs is therefore entirely the
-difference between the tapered system and the posed one, and that difference
-is confined to the band by construction.
-
-It shows up in one place that is easy to misread. The balance residual of the
-posed equation is reported as a height by inverting a Laplacian over the whole
-sphere, so the band's residual --- where the solved system differs from the
-posed one by construction --- spreads into every latitude of that height
-field, and the extratropical maximum of the report is not an extratropical
-number. On the walkthrough event that maximum reads 25~m, while the same
-residual measured locally poleward of the band is
-$1$--$4\times10^{-7}$~s$^{-1}$ of equivalent vorticity, worth 0.04--3~m of
-height when the Laplacian is inverted region by region. The
-potential-vorticity residuals involve no such inversion and can be read as
-they are.
-
-\subsection{Floors that keep the operator elliptic}
 
 \begin{center}
-\begin{tabular}{llll}
+\small
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.5cm}LL}
 \toprule
-name & default & applies to & note \\
+ & windowed chain & this package \\
 \midrule
-\code{avo\_min} & $10^{-6}$~s$^{-1}$ & $A=f^{*}+\lap\tilde\psi$ & absolute vorticity \\
-\code{stb\_min} & $10^{-4}$ & $S=\tilde\Phi_{\Pi\Pi}$ & static stability \\
-\code{deformation\_margin} & 0.05 & balance row, deformation part & limiter margin $m$ \\
+boundary ghosts &
+the same $\theta'$ ghost for $H$ and $S$, with a fixed $f_0$ &
+$\Phi$: $\partial\Phi/\partial\Pi=-\theta$; $\psi$:
+$\partial\psi/\partial\Pi=-(\theta-\langle\theta\rangle)/f^{*}$ with the local
+$f^{*}$ \\
+\midrule
+ellipticity devices &
+\code{AVO}$<0.001\to0.01$, \code{STB}$<0.001\to0.01$, \code{BI}$>0\to0$, in the
+scaled units &
+floors in SI, $A\ge10^{-6}$~s$^{-1}$, $S\ge10^{-4}$; $\hat q\ge0.01$~PVU for
+the total inversion with area-weighted give-back; the deformation limiter
+\eqref{eq:limiter} on the balance row's deformation part, on demand \\
+\midrule
+mean state & observed & observed \\
+\midrule
+poles &
+the band ends at 85.5~N; the five-point stencil changes sign past 89~N and a
+rectangle continued past the pole folds &
+ordinary points; the geographic patch blank past the pole and on the pole row,
+the rotated patch complete \\
+\midrule
+precision & \code{REAL*4} & \code{float64} \\
+\midrule
+cost &
+SOR sweeps over levels and pieces, up to 10\,000 per pass, one core per event &
+4 Newton steps at the median of fifty events; 90--130~s per event at T84 on one
+core, 3.2~min in the truncation sweep; fifty events in 12~min on 25 workers \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{center}
 
-The floors are stated in SI deliberately: in a non-dimensional scaling the same
-literal changes physical meaning with resolution and level count.
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.9\linewidth]{../examples/03_composite_comparison/fig1_composite_flow.png}
+\caption{Fifty blocking peaks, composite of the induced flow at 400--200\,hPa
+on the event-centred patch. Columns: the surface, lower, upper-planetary and
+upper-eddy pieces, and the part not attributed to any source. Rows: the
+windowed chain (\code{ibc=1}, wall piece included in the last column), the
+global inversion, and their difference.}
+\label{fig:composite}
+\end{figure}
 
-The third entry is the margin of the deformation limiter \eqref{eq:limiter} of
-Section~\ref{sec:limiter}: where the limiter acts it holds the smaller
-eigenvalue of the balance row's symbol at $m$ times the absolute vorticity.
-The limiter is not a floor on a coefficient but a weight on the deformation
-part of one row, and it is decided by policy rather than pointwise from the
-reference alone: \code{adaptive} by default, brought in only when the
-iteration meets a fold; \code{observed}, decided once from the observed state
-before the first step; or \code{off}. At most six refreshes are allowed in one
-solve. The area fraction on which it acted is published with every run, per
-level, for the total inversion and for the pieces, beside the clamp fractions.
+\textbf{Fifty events.} Both chains decompose the same balanced perturbation
+into the same four sources (Figure~\ref{fig:composite}). On the common patch,
+rms in m~s$^{-1}$, the windowed chain attributes 3.45 to the surface, 2.66 to
+the lower levels, 7.56 to the planetary and 6.74 to the eddy upper piece, and
+leaves 1.09 unattributed, of which 0.79 is its wall piece and 0.99 its
+residual, against a reference anomaly of 10.14. The global inversion
+attributes 3.03, 2.61, 8.65 and 6.86 and leaves 0.26, 2.6\% of its 10.12
+anomaly. Removing the boundary moves the flow from the unattributed part and
+the surface into the planetary upper-level piece; the eddy and lower pieces
+barely change.
 
-Two application rules are provided. The default, \code{parity}, compares against
-one tenth of the floor and then assigns the floor, so a value between the two is
-left alone; \code{clean} compares against the floor itself. The clamped area
-fraction per level is published with every run, because the clamps activate
-under strong anticyclones and blocks --- which is exactly where the science is,
-so a run should always be able to show how much of its domain was propped up.
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth]{../examples/02_polar_event/polar_cap.png}
+\caption{Two events, at 55\,N and 80\,N: the 300\,hPa flow induced by all
+pieces summed, for the windowed chain and the global inversion, beside the
+observed anomaly and the two differences from it, on a 40-degree disc about
+each centre. Star: the event; white circle: the North Pole.}
+\label{fig:polarcap}
+\end{figure}
 
-\subsection{Potential-vorticity floors}
-
-\begin{center}
-\begin{tabular}{lll}
-\toprule
-name & default & where \\
-\midrule
-\code{qmin\_total} & 0.01~PVU & the total (nonlinear) inversion \\
-\code{qmin\_pieces} & $10^{-5}$~PVU & event and mean states \emph{separately}, before differencing \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-The floor gives the added amount back to the unclamped points, weighted by area,
-so the volume integral is preserved; whatever cannot be given back is reported
-as a conservation slack rather than absorbed. Under the \code{parity} rule the
-redistribution is a single pass; under \code{clean} it iterates.
-
-The floor is not linear, so the source of a piece is the anomaly of two
-separately floored fields, not the floored anomaly. That is the reason for the
-ordering, and it is why \code{qmin\_pieces} is far smaller than
-\code{qmin\_total}: the piecewise system is linear once frozen and does not need
-positivity, whereas the nonlinear iteration does.
-
-\subsection{What ``exact'' means, and where it stops}
-
-The claim of Section~\ref{sec:pieces} is exactness \emph{of the operator that is
-actually built}. Three things modify that operator --- the floors above, the
-equatorial taper, and the deformation limiter --- and wherever any of them
-bites, the operator is the exact finite-increment operator of a modified
-system. Everywhere else it is the exact finite-increment operator of
-\eqref{eq:sys1}--\eqref{eq:sys2}. The limiter is the one of the three that is
-usually absent: it stayed out of the walkthrough event and of 48 of the 50
-catalogue events, which therefore solve the balance equation exactly as posed.
-
-The closure of the pieces is unaffected by any of the three, because all pieces
-share the same operator. That is precisely why the taper is a weight on the
-operator and the limiter a frozen field shared with the pieces.
-
-\subsection{Other things worth knowing}
-
-\begin{itemize}
-\itemsep0.15em
-\item \textbf{Below ground.} Where a pressure level lies under the surface,
-      temperature and wind are carried down and the height is continued
-      hydrostatically. Those points are filled, not observed.
-\item \textbf{The mirrored scaffold.} South of the data's own southernmost row,
-      every value is a smooth, correctly scaled reflection of the north and
-      entirely fabricated. Output rows there are returned blank, so that a patch
-      reaching into them cannot enter a composite as if they were observations.
-\item \textbf{Input guards.} A run stops rather than continues if the
-      geopotential decreases with height at more than 1\% of points (which
-      catches a top-down level axis), if potential temperature decreases with
-      height at more than 5\% of points (which catches $\theta$ supplied in
-      place of $T$), or if the geopotential and the temperature are not
-      hydrostatically consistent --- the top boundary temperature the
-      geopotential implies outside 0.7--1.4 times the one the temperature
-      gives (which catches the same substitution when the other guards do
-      not, and a height supplied as geopotential; Section~\ref{sec:pv}).
-\item \textbf{Column averages} divide by the weight of the levels that were
-      actually valid at each point, never by the full count. Filling a gap with
-      zero and dividing by everything pulls the answer towards zero while keeping
-      it finite, which is far harder to notice than a missing value.
-\item \textbf{The residual is not an error.} It is the unbalanced and divergent
-      flow, and it belongs to the event.
-\end{itemize}
+\textbf{Two events near the pole.} For the control at 55~N and the event at
+80~N (Figure~\ref{fig:polarcap}) the windowed chain cannot reach 24\% and 49\%
+of the disc, and misses the observed anomaly by 5.0 and 4.6~m~s$^{-1}$ rms
+where it does reach. The global inversion converges in four Newton steps for
+both, leaves 3\% and 2\% of the disc empty, the pole row, and misses by 2.2 and
+1.3~m~s$^{-1}$.
 
 % =============================================================================
 \section{Running it}
 \label{sec:running}
 
-\subsection{Installation}
+\textbf{Install.} \code{pip install -e .}; NumPy, SciPy (1.12 or newer, for
+the \code{rtol} keyword of the Krylov drivers), threadpoolctl, xarray and
+netCDF4; matplotlib and cartopy for the figures only.
 
-\begin{verbatim}
-pip install -e .
-\end{verbatim}
+\textbf{Input contract.} Each state is four arrays of shape
+$(n_{\text{lev}},n_{\text{lat}},n_{\text{lon}})$ over the northern hemisphere:
+\code{lat} ascending from the equator to 90~N, either on the equator or half a
+step from it; \code{lon} ascending from 0; \code{level} descending in pressure,
+1000~hPa first; \code{z} a geopotential \emph{height} in metres; \code{t} a
+\emph{temperature} in kelvin; \code{u}, \code{v} in m~s$^{-1}$. The
+climatology is on the same grid and levels. The geopotential and the
+temperature must be hydrostatically consistent (Step~2).
 
-The requirements are NumPy, SciPy, threadpoolctl, xarray and netCDF4; matplotlib
-and cartopy are needed only for the figures. SciPy 1.12 or newer is required,
-because the Krylov drivers are called with the modern \code{rtol} keyword.
-
-\subsection{Input contract}
-
-Each state is four arrays of shape $(n_{\text{lev}},n_{\text{lat}},
-n_{\text{lon}})$ covering the northern hemisphere:
-
-\begin{center}
-\begin{tabular}{ll}
-\toprule
-\code{lat} & ascending, 0 to 90~N \\
-\code{lon} & ascending, starting at 0 \\
-\code{level} & descending in pressure, 1000~hPa first \\
-\code{z} & geopotential height [m] --- not geopotential \\
-\code{t} & temperature [K] --- not potential temperature \\
-\code{u}, \code{v} & wind components [m~s$^{-1}$] \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-A climatology on the same grid and the same levels is required alongside the
-event. The geopotential and the temperature of each state must be
-hydrostatically consistent, and are checked for it before anything is inverted
-(Section~\ref{sec:pv}).
-
-\subsection{One event, from Python}
-
+\textbf{One event, from Python.}
+{\small
 \begin{verbatim}
 from pvinv_sph.config import InversionConfig, MirrorConfig
 from pvinv_sph.levels import build_levels
@@ -1943,122 +990,64 @@ cfg    = InversionConfig(mirror=MirrorConfig(blend=True))
 
 event = prepare_state(z_ev, t_ev, u_ev, v_ev, lat, lon, levels, solver)
 clim  = prepare_state(z_cl, t_cl, u_cl, v_cl, lat, lon, levels, solver)
-
 result = invert_pieces(solver, levels, clim, event, cfg=cfg)
 
 # the rotational wind induced by the 300 hPa potential-vorticity anomaly
 u, v = rotational_wind_stack(solver, result.pieces["300"].psi_spec)
 \end{verbatim}
+}
+\code{result.pieces} is keyed by pressure in hPa, \code{"1000"} and
+\code{"100"} being the boundary pieces; \code{result.diagnostics} carries the
+Newton history, the Krylov count per piece, the posed-equation residuals and
+the limiter and clamp reports; \code{result.summed\_psi()} is compared with
+\code{all\_sources\_inversion} for the closure of Step~6. For the patch
+cropping and the output arrays use \code{invert\_event} from
+\code{pvinv\_sph.pipeline}.
 
-\code{result.pieces} is keyed by pressure in hPa: \code{"1000"} is the surface
-potential-temperature piece, \code{"850"} through \code{"200"} the interior
-potential-vorticity levels, and \code{"100"} the top boundary.
-\code{result.diagnostics} carries the Newton history, the Krylov count per
-piece, the residuals of the posed equations at the balanced state, the
-limiter's area fractions and refresh count, and the clamp and floor reports.
-The sum of the pieces is
-\code{result.summed\_psi()}, to be compared against
-\code{all\_sources\_inversion} for the closure check of
-Section~\ref{sec:closure}.
-
-For a complete event including the patch cropping and the output arrays, use
-\code{invert\_event} from \code{pvinv\_sph.pipeline}. It takes the two states,
-the event centre and the patch half-widths, and returns the arrays ready to
-save.
-
-\subsection{A catalogue, from the command line}
-
-\begin{verbatim}
-pvinv-sph catalogue.csv --out-dir results/ --workers 32
-\end{verbatim}
-
-The catalogue is a CSV whose columns are \code{event\_id},
-\code{state\_path}, \code{state\_index}, \code{clim\_path},
-\code{clim\_index}, \code{lat} and \code{lon}. They are checked before the
-run starts. Events are run in
-parallel with one BLAS thread each --- the arrays are small enough that
-threading them buys nothing and the spin waits cost everything --- and a failure
-is recorded per event rather than raised, so one pathological mean state does
-not end a run of thirty thousand.
-
-The flags that matter for the approximations of Section~\ref{sec:choices}:
-
+\textbf{A catalogue, from the command line.} The command of Step~8, with the
+flags
 \begin{center}
 \small
-\begin{tabular}{lll}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{4.7cm}>{\raggedright\arraybackslash}p{1.9cm}L}
 \toprule
 flag & default & meaning \\
 \midrule
-\code{--f-floor-deg} & 12.0 & latitude scale of the Coriolis floor \\
-\code{--blend-south} & 5.0 & equatorward edge of the coefficient taper \\
-\code{--blend-north} & 20.0 & poleward edge of the coefficient taper \\
-\code{--no-blend} & --- & skip the taper entirely \\
-\code{--pv-source} & \code{operator} & stencils of the potential-vorticity source \\
-\code{--deformation-limiter} & \code{adaptive} & when the limiter is brought in \\
+\code{--pieces} & \code{per\_level} & \code{per\_level} or \code{scale} (Step~5); disjoint key sets, not to be mixed in one directory \\
+\code{--pv-source} & \code{operator} & stencils of the potential-vorticity source (Step~2) \\
+\code{--deformation-limiter} & \code{adaptive} & \code{adaptive}, \code{observed} or \code{off} (Step~3) \\
 \code{--krylov-maxiter} & 800 & operator applications per linear solve \\
 \code{--newton-max-steps} & 20 & cap on the nonlinear iteration \\
+\code{--blend-south}, \code{--blend-north} & 5.0, 20.0 & edges of the equatorial weight, degrees \\
+\code{--f-floor-deg} & 12.0 & latitude scale of the Coriolis floor \\
+\code{--rotated-track} & --- & also write the rotated-frame patch \\
 \code{--solver-nlat}, \code{--solver-nlon} & 128, 256 & the Gaussian solver grid \\
 \code{--lat-half}, \code{--lon-half} & 30.0, 60.0 & output patch half-widths \\
-\code{--rotated-track} & --- & also write the rotated-frame patch \\
+\code{--workers}, \code{--skip-existing} & CPU count, --- & processes; resume a run \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{center}
+A run that hits the Newton cap is reported, not raised: read
+\code{meta\_newton\_final\_increment\_m} and the posed-equation residuals
+before treating it as a failure. A solution quoted equatorward of about 20~N
+lies inside the Coriolis floor and the weight, and is to be checked against a
+run with a smaller \code{--f-floor-deg} and a narrower band.
 
-A run that hits the Newton cap is not automatically a failure: check the
-reported final increment in metres and the posed-equation residuals before
-treating it as one.
-
-Each output file carries the run's own account of itself under \code{meta\_}
-keys. Beside the grid, the truncation, the piece names and the clamp and floor
-fractions, these are:
-
-\begin{center}
-\small
-\begin{tabular}{>{\raggedright\arraybackslash}p{0.50\linewidth}>{\raggedright\arraybackslash}p{0.44\linewidth}}
-\toprule
-key & meaning \\
-\midrule
-\code{pv\_source} & which stencils evaluated the source \\
-\code{newton\_steps}, \code{newton\_converged}, \code{newton\_final\_increment\_m} & the nonlinear iteration and its last increment in metres \\
-\code{newton\_final\_balance\_m}, \code{newton\_final\_pv\_pvu} & residuals of the posed equations at the returned state, global maxima \\
-\code{newton\_final\_balance\_m\_extratropics}, \code{newton\_final\_pv\_pvu\_extratropics} & the same poleward of the taper band; read the balance one with Section~\ref{sec:choices} in mind \\
-\code{newton\_final\_pv\_pvu\_rms\_extratropics} & rms of the potential-vorticity residual poleward of the band \\
-\code{newton\_deformation\_fraction}, \code{piece\_deformation\_fraction} & area fraction per interior level on which the limiter acted, in the total inversion and in the pieces \\
-\code{newton\_limiter\_refreshes} & how many times the limiter was brought in or tightened \\
-\code{newton\_final\_nonelliptic\_fraction} & area fraction per level on which the linearised balance row is not elliptic at the returned state \\
-\code{inner\_solves\_unconverged}, \code{all\_pieces\_converged} & linear solves that ran out of budget; whether every piece converged \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\subsection{The walkthrough, and the tests}
-
-Every figure in this document is produced by the notebook in
-\code{examples/01\_walkthrough/}, which runs one inversion from beginning to end
-on a sample event that ships with the package. Regenerate them with
-
+\textbf{Tests and figures.}
+{\small
 \begin{verbatim}
+PYTHONPATH=src python -m pytest tests -q
 python examples/01_walkthrough/build.py
 jupyter nbconvert --to notebook --execute --inplace \
     --ExecutePreprocessor.timeout=3600 \
     examples/01_walkthrough/01_walkthrough.ipynb
 \end{verbatim}
-
-and run the test suite with
-
-\begin{verbatim}
-PYTHONPATH=src python -m pytest tests -q
-\end{verbatim}
-
-The tests are the verification ladder for everything asserted above: that the
-vertical stencil is exact for quadratics in $\Pi$ and that its rows sum to zero;
-that the boundary folding and the boundary source are consistent; that the
-balance term reproduces the closed form for solid-body rotation and is invariant
-under rotating a vortex to the pole; that the spectral round trip is exact;
-that the midpoint identity holds with the taper on; that the limiter keeps the
-balance row elliptic and that the Jacobian is the derivative of the residual
-where it acts; that the pieces' boundary levels carry the thermal-wind ghost;
-and that the pieces sum to the all-sources solve.
+}
+The tests check the vertical stencil, the boundary folding, the balance term
+against solid-body rotation and under rotation of a vortex to the pole, the
+spectral round trip, the midpoint identity with the weight on, the limiter and
+its Jacobian, the pieces' thermal-wind boundary levels, and the closure of the
+pieces against the all-sources solve. The notebook produces every figure of
+Section~\ref{sec:steps}.
 
 % =============================================================================
 \begin{thebibliography}{9}
