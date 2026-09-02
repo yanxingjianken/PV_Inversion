@@ -86,6 +86,13 @@ graph TD
     NPZ --> FIG
 ```
 
+For many events on one grid, build the transforms once and reuse them:
+`engine = SphereEngine.build(lat_nh, lon, cfg=InversionConfig())`, then
+`invert_event(..., engine=engine)` per event, or `invert_hemisphere(engine, ...)`
+for the pieces on the data's own grid before any cropping (what `pvtend` consumes;
+its adapter crops onto the event patch itself).  Both live in `pvinv_sph.pipeline`;
+the output of `invert_event` is the same with or without an engine, to the bit.
+
 ## Status
 
 | phase | content | state |
