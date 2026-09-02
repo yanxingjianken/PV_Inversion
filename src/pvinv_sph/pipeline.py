@@ -242,11 +242,24 @@ def invert_event(
     out_sht = SHT(out_grid, lmax=lmax)
 
     mean = prepare_state(
-        *mean_fields, lat_nh, lon, levels, ops, cfg.mirror.f_floor_deg
+        *mean_fields, lat_nh, lon, levels, ops, cfg.mirror.f_floor_deg, cfg.pv_source
     )
     event = prepare_state(
-        *event_fields, lat_nh, lon, levels, ops, cfg.mirror.f_floor_deg
+        *event_fields, lat_nh, lon, levels, ops, cfg.mirror.f_floor_deg, cfg.pv_source
     )
+    # Real data are hydrostatically consistent to a few percent; a potential
+    # temperature handed in as a temperature, or a height as a geopotential,
+    # is not, and would otherwise survive every other check.
+    for label, state_ in (("climatology", mean), ("event", event)):
+        ratio = state_.boundary_theta_ratio[1]
+        if not 0.7 < ratio < 1.4:
+            raise ValueError(
+                f"the {label}'s geopotential and temperature are not "
+                f"hydrostatically consistent: the top boundary temperature the "
+                f"geopotential implies is {ratio:.2f} times the one from the "
+                f"temperature (a potential temperature passed as temperature, or "
+                f"a height as geopotential, does this)"
+            )
     pieces, qp_overrides, th_overrides, split = _piece_spec(
         ops, levels, mean, event, cfg, pieces_mode, lat0=centre[0], lon0=centre[1]
     )
@@ -412,6 +425,8 @@ def invert_event(
 
     meta = {
         "pieces_mode": pieces_mode,
+        "pv_source": cfg.pv_source,
+        "deformation_limiter": cfg.newton.deformation_limiter,
         **(
             {
                 "split_q_min": split["q_min"],
@@ -436,6 +451,22 @@ def invert_event(
         "linear_iterations": result.diagnostics["linear_iterations"],
         "inner_solves_converged": result.diagnostics["inner_solves_converged"],
         "inner_solves_unconverged": result.diagnostics["inner_solves_unconverged"],
+        # Residuals of the equations as posed at the balanced state, in metres
+        # of height and in PVU, globally and poleward of the taper band: what
+        # "converged" means physically, which the increment test alone does not
+        # say.  And where the deformation limiter acted, per level.
+        **{
+            f"newton_final_{k}": float(v)
+            for k, v in result.diagnostics["newton_final_norms"].items()
+        },
+        "newton_deformation_fraction": result.diagnostics[
+            "newton_deformation_fraction"
+        ],
+        "newton_limiter_refreshes": result.diagnostics["newton_limiter_refreshes"],
+        "newton_final_nonelliptic_fraction": result.diagnostics[
+            "newton_final_nonelliptic_fraction"
+        ],
+        "piece_deformation_fraction": result.diagnostics["piece_deformation_fraction"],
         "clamp_worst_fraction": result.clamp_worst,
         "pv_floor_fraction_event": result.floor_event.fraction,
         "pv_floor_fraction_mean": result.floor_mean.fraction,

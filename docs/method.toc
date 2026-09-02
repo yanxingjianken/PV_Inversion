@@ -2,48 +2,49 @@
 \contentsline {section}{\numberline {2}The vertical coordinate}{4}{section.2}%
 \contentsline {section}{\numberline {3}The streamfunction}{6}{section.3}%
 \contentsline {section}{\numberline {4}Potential vorticity}{7}{section.4}%
-\contentsline {section}{\numberline {5}The balance equation}{8}{section.5}%
-\contentsline {subsection}{\numberline {5.1}As Charney wrote it}{8}{subsection.5.1}%
-\contentsline {subsection}{\numberline {5.2}Where the sphere enters}{9}{subsection.5.2}%
-\contentsline {section}{\numberline {6}The coupled system}{10}{section.6}%
-\contentsline {section}{\numberline {7}The piecewise linearisation}{11}{section.7}%
-\contentsline {subsection}{\numberline {7.1}The choice, and why it is the one that closes}{11}{subsection.7.1}%
-\contentsline {subsection}{\numberline {7.2}The linear system}{12}{subsection.7.2}%
-\contentsline {subsection}{\numberline {7.3}Why the linearisation is exact}{12}{subsection.7.3}%
-\contentsline {subsection}{\numberline {7.4}What a piece is}{13}{subsection.7.4}%
-\contentsline {subsection}{\numberline {7.5}Why the pieces add exactly}{13}{subsection.7.5}%
-\contentsline {section}{\numberline {8}Boundary conditions}{14}{section.8}%
-\contentsline {subsection}{\numberline {8.1}Top and bottom}{14}{subsection.8.1}%
-\contentsline {subsection}{\numberline {8.2}The streamfunction at the boundaries}{14}{subsection.8.2}%
-\contentsline {subsection}{\numberline {8.3}Why there is no condition at the side}{15}{subsection.8.3}%
-\contentsline {section}{\numberline {9}From a hemisphere to the sphere}{15}{section.9}%
-\contentsline {subsection}{\numberline {9.1}Two mirrors, with different parities}{15}{subsection.9.1}%
-\contentsline {subsection}{\numberline {9.2}The Coriolis floor}{16}{subsection.9.2}%
-\contentsline {subsection}{\numberline {9.3}The equatorial taper}{16}{subsection.9.3}%
-\contentsline {subsection}{\numberline {9.4}What both cost}{16}{subsection.9.4}%
-\contentsline {section}{\numberline {10}Discretisation and solution}{17}{section.10}%
-\contentsline {subsection}{\numberline {10.1}Two grids}{17}{subsection.10.1}%
-\contentsline {subsection}{\numberline {10.2}Which operations are spectral and which are not}{17}{subsection.10.2}%
-\contentsline {subsection}{\numberline {10.3}The vertical stencil}{18}{subsection.10.3}%
-\contentsline {subsection}{\numberline {10.4}Scaling of the unknowns and of the rows}{18}{subsection.10.4}%
-\contentsline {subsection}{\numberline {10.5}The gauge}{18}{subsection.10.5}%
-\contentsline {subsection}{\numberline {10.6}The preconditioner}{18}{subsection.10.6}%
-\contentsline {subsection}{\numberline {10.7}The linear solve}{19}{subsection.10.7}%
-\contentsline {subsection}{\numberline {10.8}The nonlinear solve}{19}{subsection.10.8}%
-\contentsline {subsection}{\numberline {10.9}Cost}{20}{subsection.10.9}%
-\contentsline {section}{\numberline {11}The wind induced by each level}{20}{section.11}%
-\contentsline {section}{\numberline {12}Grouping the pieces}{21}{section.12}%
-\contentsline {section}{\numberline {13}Closure, and what is left over}{22}{section.13}%
-\contentsline {section}{\numberline {14}The same calculation at 79 N}{22}{section.14}%
-\contentsline {section}{\numberline {15}The choices, and what they cost}{23}{section.15}%
-\contentsline {subsection}{\numberline {15.1}Modifications in a band around the equator}{23}{subsection.15.1}%
-\contentsline {subsection}{\numberline {15.2}Floors that keep the operator elliptic}{24}{subsection.15.2}%
-\contentsline {subsection}{\numberline {15.3}Potential-vorticity floors}{24}{subsection.15.3}%
-\contentsline {subsection}{\numberline {15.4}What ``exact'' means, and where it stops}{25}{subsection.15.4}%
-\contentsline {subsection}{\numberline {15.5}Other things worth knowing}{25}{subsection.15.5}%
-\contentsline {section}{\numberline {16}Running it}{25}{section.16}%
-\contentsline {subsection}{\numberline {16.1}Installation}{25}{subsection.16.1}%
-\contentsline {subsection}{\numberline {16.2}Input contract}{25}{subsection.16.2}%
-\contentsline {subsection}{\numberline {16.3}One event, from Python}{26}{subsection.16.3}%
-\contentsline {subsection}{\numberline {16.4}A catalogue, from the command line}{26}{subsection.16.4}%
-\contentsline {subsection}{\numberline {16.5}The walkthrough, and the tests}{27}{subsection.16.5}%
+\contentsline {section}{\numberline {5}The balance equation}{9}{section.5}%
+\contentsline {subsection}{\numberline {5.1}As Charney wrote it}{9}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Where the sphere enters}{10}{subsection.5.2}%
+\contentsline {section}{\numberline {6}The coupled system}{11}{section.6}%
+\contentsline {section}{\numberline {7}The piecewise linearisation}{12}{section.7}%
+\contentsline {subsection}{\numberline {7.1}The choice, and why it is the one that closes}{12}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}The linear system}{13}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Why the linearisation is exact}{14}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}What a piece is}{14}{subsection.7.4}%
+\contentsline {subsection}{\numberline {7.5}Why the pieces add exactly}{14}{subsection.7.5}%
+\contentsline {section}{\numberline {8}Boundary conditions}{15}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Top and bottom}{15}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}The streamfunction at the boundaries}{16}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}Why there is no condition at the side}{16}{subsection.8.3}%
+\contentsline {section}{\numberline {9}From a hemisphere to the sphere}{17}{section.9}%
+\contentsline {subsection}{\numberline {9.1}Two mirrors, with different parities}{17}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}The Coriolis floor}{18}{subsection.9.2}%
+\contentsline {subsection}{\numberline {9.3}The equatorial taper}{18}{subsection.9.3}%
+\contentsline {subsection}{\numberline {9.4}What both cost}{18}{subsection.9.4}%
+\contentsline {section}{\numberline {10}Discretisation and solution}{19}{section.10}%
+\contentsline {subsection}{\numberline {10.1}Two grids}{19}{subsection.10.1}%
+\contentsline {subsection}{\numberline {10.2}Which operations are spectral and which are not}{19}{subsection.10.2}%
+\contentsline {subsection}{\numberline {10.3}The vertical stencil}{20}{subsection.10.3}%
+\contentsline {subsection}{\numberline {10.4}Scaling of the unknowns and of the rows}{20}{subsection.10.4}%
+\contentsline {subsection}{\numberline {10.5}The gauge}{20}{subsection.10.5}%
+\contentsline {subsection}{\numberline {10.6}The preconditioner}{21}{subsection.10.6}%
+\contentsline {subsection}{\numberline {10.7}The linear solve}{21}{subsection.10.7}%
+\contentsline {subsection}{\numberline {10.8}The nonlinear solve}{21}{subsection.10.8}%
+\contentsline {subsection}{\numberline {10.9}The deformation limiter}{22}{subsection.10.9}%
+\contentsline {subsection}{\numberline {10.10}Cost}{23}{subsection.10.10}%
+\contentsline {section}{\numberline {11}The wind induced by each level}{24}{section.11}%
+\contentsline {section}{\numberline {12}Grouping the pieces}{24}{section.12}%
+\contentsline {section}{\numberline {13}Closure, and what is left over}{26}{section.13}%
+\contentsline {section}{\numberline {14}The same calculation at 79 N}{27}{section.14}%
+\contentsline {section}{\numberline {15}The choices, and what they cost}{27}{section.15}%
+\contentsline {subsection}{\numberline {15.1}Modifications in a band around the equator}{27}{subsection.15.1}%
+\contentsline {subsection}{\numberline {15.2}Floors that keep the operator elliptic}{29}{subsection.15.2}%
+\contentsline {subsection}{\numberline {15.3}Potential-vorticity floors}{29}{subsection.15.3}%
+\contentsline {subsection}{\numberline {15.4}What ``exact'' means, and where it stops}{29}{subsection.15.4}%
+\contentsline {subsection}{\numberline {15.5}Other things worth knowing}{30}{subsection.15.5}%
+\contentsline {section}{\numberline {16}Running it}{30}{section.16}%
+\contentsline {subsection}{\numberline {16.1}Installation}{30}{subsection.16.1}%
+\contentsline {subsection}{\numberline {16.2}Input contract}{30}{subsection.16.2}%
+\contentsline {subsection}{\numberline {16.3}One event, from Python}{31}{subsection.16.3}%
+\contentsline {subsection}{\numberline {16.4}A catalogue, from the command line}{31}{subsection.16.4}%
+\contentsline {subsection}{\numberline {16.5}The walkthrough, and the tests}{32}{subsection.16.5}%

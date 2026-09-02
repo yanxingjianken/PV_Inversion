@@ -168,3 +168,59 @@ global imbalance between the area-mean potential vorticity and the boundary temp
 boundary fluxes — the sphere must now do explicitly. The gauges above handle the first; the second
 appears as a compatibility condition on the n = 0 column, whose removed magnitude is reported rather
 than discarded silently.
+
+## 8. Ellipticity of the balance row, and the taper as a weight on products
+
+Two things about the linearised balance row were found on real events and are now built in.
+
+**The row is elliptic only where vorticity beats deformation.** The quadratic part of the balance
+equation, polarised over two streamfunctions, is (from §3, using 4 det(Hess) = ζ² − D₁² − D₂²)
+
+    B(a, b) = ∇·(ζ_a ∇b) + ∇·(ζ_b ∇a) − ∇²(∇a·∇b) = ζ_a ζ_b − (D₁ᵃD₁ᵇ + D₂ᵃD₂ᵇ) − 2∇a·∇b/a²,
+
+so the symbol of the tangent at a reference ψ̃ has eigenvalues f + ζ̃ ∓ D̃. Wherever the reference
+deformation exceeds the absolute vorticity — strain-dominated flow, about a sixth of the jet level
+on a winter day — the linearised system is indefinite there. Krylov solvers often still converge on
+it, but a Newton iteration whose path crosses a fold of such a system oscillates without descending,
+which is how a handful of events out of fifty used to end at the step cap. The limited-area codes
+meet a related condition with a clamp on their balance-equation coefficient.
+
+Here the deformation part alone is scaled. With ζ̃ζ′ evaluated pointwise and the rest as the exact
+divergence form,
+
+    T[ψ′] = w ζ̃ ζ′ + w s [ B(ψ̃, ψ′) − ζ̃ ζ′ ],      s = min(1, (1 − m) AVO / (w D̃)),
+
+the symbol becomes AVO ∓ s w D̃ ≥ m·AVO, the vorticity part that gradient-wind balance lives on is
+untouched, and the form stays symmetric because s and w are frozen fields multiplying a symmetric
+product. Scaling the whole quadratic part instead, ζ̃ζ′ included, removes the relative vorticity
+from the effective Coriolis parameter in every strain region and weakened the balanced total flow
+by a tenth on a test event; it is not what is done.
+
+**The limiter is a safety net, brought in only on failure.** With the taper made symmetric (below),
+the source evaluated with the operator's own stencils (§2) and the gauge constant removed before the
+first step, the fifty test events — including every one that used to stall — converge in four Newton
+steps with the balance equation solved exactly as posed. The limiter therefore starts as one
+everywhere and is switched on, from the observed state and the current iterate, only when an inner
+solve fails to converge or a line search fails: the two signs that the iteration has met a fold. On
+the fifty events it was needed by two. While it is fixed, the residual is exactly quadratic and the
+Jacobian its derivative, so Newton stays quadratic on the regularised system; every refresh is
+counted and reported, and so is the area fraction where the returned state's linearised balance row
+is still not elliptic. The piecewise pass takes the same limiter, so its operator is the tangent of
+the same system at the midpoint. Where the limiter acts, the solved balance equation is the posed
+one with a fraction 1 − s of its deformation and curvature part removed; the balance residual
+reported against the posed equations shows exactly that.
+
+**The taper multiplies products, not the reference.** The earlier construction tapered the
+reference vorticity and rebuilt the reference streamfunction from it, so the row used two different
+flows and its bilinear form was not symmetric: the midpoint identity of §5 failed by a factor of up
+to two per Newton step in the band and the pieces no longer summed to the balanced perturbation.
+With the weight inside every product — w in ∇·(wζ_a∇b), in ∇²(w∇a·∇b), and, for the static
+stability tapered towards its level mean, the partner term (1 − w) ζ̃ ⟨S′⟩ on the potential-vorticity
+row — the tapered system is again an exact quadratic and the identity holds to rounding with the
+taper on (`tests/test_ellipticity_taper.py`).
+
+Two smaller consistency points came with this. The reference state's boundary levels are set to the
+operator's ghosts before the operator is frozen, since a reference that mixes observed boundary
+levels with a balanced state's ghosts is the tangent of neither. And the boundary temperatures pass
+through the spectrum before entering the right-hand side, so both sides of the bilinear form see the
+same resolved temperature.

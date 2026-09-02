@@ -1,0 +1,3 @@
+50 events, 25 workers
+  50/50  4.2 events/min  {'ok': 50}
+done in 12.0 min: {'ok': 50}

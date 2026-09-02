@@ -276,6 +276,14 @@ fig.savefig(FIGURES / "fig02_streamfunction.png")
 u_rot, v_rot = rotational_wind_stack(solver, event.psi_spec)
 print(f"rotational wind at 250 hPa: rms {np.sqrt(np.mean(u_rot[k250][north]**2 + v_rot[k250][north]**2)):.1f} m/s")
 print(f"full wind at 250 hPa      : rms {np.sqrt(np.mean(u_ev[k250]**2 + v_ev[k250]**2)):.1f} m/s")
+
+# The boundary temperature the geopotential implies hydrostatically, over the one
+# the temperature gives.  Real data sit near one; a potential temperature handed
+# in as a temperature, or a height as a geopotential, does not, and would pass
+# every other check.  The pipeline refuses inputs outside 0.7 to 1.4 at the top.
+for label, state in (("event", event), ("climatology", clim)):
+    bot, top = state.boundary_theta_ratio
+    print(f"hydrostatic consistency, {label:12s}: theta ratio bottom {bot:.3f}, top {top:.3f}")
 """)
 
 # ---------------------------------------------------------------------------
@@ -301,6 +309,16 @@ Interior potential vorticity exists on levels 850 to 200 hPa only. The vertical
 derivative needs a level on each side, so at 1000 and 100 hPa there is none — those
 two levels carry **boundary potential temperature** instead, which enters the
 inversion as a condition rather than as a source.
+
+Both are evaluated with the inversion's own stencils (`pv_source="operator"`,
+the default): the stratification is the three-point second difference of the
+geopotential on the stretched Exner grid, the shear terms use the hydrostatic
+ghost levels, and the boundary temperature is the hydrostatic difference of the
+geopotential across the half level. The data pair then satisfies the
+potential-vorticity row of the system exactly, and the balanced state has
+nothing to absorb but the imbalance itself. The limited-area convention of plain
+centred differences of temperature and wind (`pv_source="data"`) is still
+available, and differs from it level by level on a stretched grid.
 """)
 
 code(r"""
@@ -331,6 +349,17 @@ fig.colorbar(m, ax=axes[1], label="PVU")
 fig.savefig(FIGURES / "fig03_pv.png")
 print("levels carrying interior PV:", levels.p_hpa[interior].astype(int))
 print("levels carrying boundary theta:", [int(levels.p_hpa[0]), int(levels.p_hpa[-1])])
+
+# How much the two conventions for the source differ on this grid: the
+# operator's stencils against plain centred differences of temperature and wind.
+event_data = prepare_state(z_ev, t_ev, u_ev, v_ev, lat, lon, levels, solver, pv_source="data")
+pv_data = ertel_pv_pvu(event_data.q_hat, levels)
+print("operator vs data source, rms difference over rms PV, northern hemisphere:")
+print("  " + ", ".join(
+    f"{int(levels.p_hpa[k])}: {100 * np.sqrt(np.mean((pv[i] - pv_data[i])[north] ** 2)) / np.sqrt(np.mean(pv[i][north] ** 2)):.0f}%"
+    for i, k in enumerate(interior)))
+print(f"  boundary theta, rms difference: bottom {np.sqrt(np.mean((event.theta_bot - event_data.theta_bot)[north] ** 2)):.1f} K, "
+      f"top {np.sqrt(np.mean((event.theta_top - event_data.theta_top)[north] ** 2)):.1f} K")
 """)
 
 # ---------------------------------------------------------------------------
@@ -373,6 +402,15 @@ northward odd — and its vorticity taken; only then is that vorticity mirrored 
 an even scalar. Mirroring the wind and stopping there would leave $\zeta$ odd, so
 $|f| + \zeta$ would change sign across the equator and ellipticity would be lost.
 And $|f|$ has a corner at the equator, which is smoothed by a floor.
+
+The mirrored reference state has a kink at the equator too, and the coefficients
+built from it are tapered over a band of latitude: the weight in the right-hand
+panel below multiplies the *products* the quadratic terms of the operator are
+made of, never the sources or the solution. Written that way the tapered system
+is still an exact quadratic with a symmetric bilinear form, so the midpoint
+linearisation of the next section holds with the taper on. Tapering the reference
+vorticity alone, which is what an earlier version did, made the operator the
+tangent of two different flows at once inside the band.
 """)
 
 code(r"""
@@ -426,6 +464,35 @@ The total balanced state is found first, by a Newton iteration whose Jacobian is
 the same operator the pieces use. Each linear solve is preconditioned by a
 separable approximation: the horizontal part is diagonal in spherical-harmonic
 space and the vertical part is a small tridiagonal system for each coefficient.
+
+The linearised balance equation is elliptic only where the absolute vorticity of
+the reference flow exceeds its deformation. On the flank of a strong anticyclone
+it does not, and a Newton iteration that reaches such a state walks into a fold.
+There is a safety net for that case: the deformation part of the balance row
+can be limited by $s = \min\!\left(1,\ (1-m)\,\mathrm{AVO}/(w D)\right)$
+with a margin $m = 0.05$, the vorticity part, which is what gradient-wind
+balance lives on, being kept. By default the limiter is brought in adaptively:
+the iteration starts on the balance equation as posed and only if an inner
+solve fails to converge or a line search fails — the two signs that the
+linearised row has lost ellipticity — is the limiter switched on, from the
+observed state and the iterate, and the step retaken. While it does not
+change, the residual is one quadratic system and every Newton step is exact;
+the pieces take whatever limiter the total converged with, so their operator
+is the tangent of the same system. Convergence is declared when the
+geopotential increment falls below 0.1 m after a successful line search — and
+the report also carries the residuals of the equations *as posed*, without
+taper, floors or limiter, so "converged" is a number in metres and in PVU
+rather than a flag.
+
+On this event the iteration takes five steps, with increments of 308, 21.6,
+1.50, 0.12 and 0.04 m, where the earlier construction, with a limiter that
+followed the iterate and a taper on the reference alone, took eleven. No inner
+solve stops short of its tolerance and the limiter is never needed, although
+the linearised balance row is not elliptic at the returned state on 1.5 % of
+the area at 850 hPa rising to 14 % at 300 hPa — the strain-dominated flanks
+of the jet: an indefinite region that small is something the preconditioned
+Krylov solves and the line search get through on their own. The posed
+potential-vorticity equation is met to 0.0040 PVU rms poleward of 20 N.
 """)
 
 code(r"""
@@ -438,14 +505,44 @@ elapsed = time.time() - started
 report = result.diagnostics
 print(f"Newton: {result.newton_steps} steps, converged {report['newton_converged']}, "
       f"final increment {report['newton_final_increment_m']:.3f} m")
+print(f"Newton increments [m]: {np.round(np.array(report['newton_increments']) / 9.81, 3)}")
 print(f"Krylov iterations per piece: {report['linear_iterations']}")
+print(f"inner solves short of tolerance: {report['inner_solves_unconverged']}")
 print(f"clamped fraction: {result.clamp_worst:.4f}")
 print(f"elapsed: {elapsed:.0f} s")
+
+# What "converged" means physically: the residuals of the two equations as posed
+# (no taper, no floors, no limiter) at the balanced state, in metres of height
+# for the balance row and in PVU for the potential-vorticity row.  Poleward of
+# the taper band the solved system and the posed one coincide, so those are
+# the numbers to read; the global maxima include the band, where they differ
+# by construction.
+norms = report["newton_final_norms"]
+print(f"posed-equation residuals poleward of {config.mirror.blend_north:.0f} N: "
+      f"balance max {norms['balance_m_extratropics']:.3f} m, "
+      f"PV max {norms['pv_pvu_extratropics']:.4f} PVU, "
+      f"PV rms {norms['pv_pvu_rms_extratropics']:.5f} PVU")
+print(f"posed-equation residuals, whole sphere:      "
+      f"balance max {norms['balance_m']:.3f} m, PV max {norms['pv_pvu']:.4f} PVU")
+
+# Where the balance row loses ellipticity -- the reference deformation exceeding
+# the absolute vorticity -- the deformation terms can be limited.  The area
+# fraction on which the limiter acted, per interior level, for the total and for
+# the pieces (which share it); how often it was brought in; and the fraction of
+# each level where the linearised balance row is still not elliptic at the
+# returned state.
+def per_level(values):
+    return ", ".join(f"{int(levels.p_hpa[k])}:{100 * v:.1f}%" for k, v in zip(interior, values))
+print("deformation limiter active (total): ", per_level(report["newton_deformation_fraction"]))
+print("deformation limiter active (pieces):", per_level(report["piece_deformation_fraction"]))
+print(f"limiter refreshes: {report['newton_limiter_refreshes']}")
+print("non-elliptic at the returned state:  ", per_level(report["newton_final_nonelliptic_fraction"]))
 
 fig, axes = plt.subplots(1, 2, figsize=(9.5, 3.2), constrained_layout=True)
 axes[0].semilogy(np.arange(1, len(report["newton_increments"]) + 1),
                  np.array(report["newton_increments"]) / 9.81, "o-")
 axes[0].axhline(0.1, color="r", ls="--", label="tolerance, 0.1 m")
+axes[0].set_xticks(np.arange(1, len(report["newton_increments"]) + 1))
 axes[0].set_xlabel("Newton step"); axes[0].set_ylabel("increment [m]")
 axes[0].set_title("the nonlinear iteration"); axes[0].legend(); axes[0].grid(alpha=0.3)
 
@@ -455,6 +552,76 @@ axes[1].set_xticks(range(len(names))); axes[1].set_xticklabels(names, rotation=4
 axes[1].set_ylabel("Krylov iterations"); axes[1].set_title("one linear solve per piece")
 axes[1].grid(alpha=0.3, axis="y")
 fig.savefig(FIGURES / "fig05_convergence.png")
+""")
+
+md(r"""
+The balance residual above has a large maximum, and it is not where it seems.
+The balance row is reported as a height by inverting a Laplacian, which is a
+global operation: the residual inside the taper band, where the solved system
+differs from the posed one by construction, spreads into every latitude of the
+height field, and a mask applied afterwards does not remove it. The cell below
+measures the same residual locally, as the vorticity error it is equivalent to
+(the residual over $f$), separately in the strain-dominated region of the
+observed state — where the limiter would act if it were needed — and outside
+it, with the observed state's own imbalance and the vorticity itself for
+scale; and it inverts the Laplacian of each region's residual on its own.
+""")
+
+code(r"""
+from pvinv_sph.levels import G
+from pvinv_sph.operator import FrozenState
+from pvinv_sph.passc import BalancedInversion
+from pvinv_sph.qmin import floor_pv
+
+balancer = BalancedInversion(solver, levels, clamps=config.clamps, mirror=config.mirror,
+                             krylov=config.krylov, newton=config.newton)
+q_total, _ = floor_pv(event.q_hat, levels, solver.grid.weights,
+                      config.pv_floor.qmin_total, config.clamps.mode)
+
+def balance_residual_grid(psi_spec, phi_spec):
+    "The posed balance row at a state, on the grid, in s^-2."
+    r1, _ = balancer.residual(psi_spec, phi_spec, q_total, event.theta_bot, event.theta_top)
+    return np.stack([solver.synth(r1[k]) for k in range(r1.shape[0])])
+
+frozen_obs = FrozenState(solver, levels, event.psi_spec, event.phi_spec,
+                         clamps=config.clamps, mirror=config.mirror)
+limit, f_grid = frozen_obs.deform_limit, frozen_obs.f_grid
+r_bal = balance_residual_grid(result.total_psi_spec, result.total_phi_spec) / f_grid
+r_obs = balance_residual_grid(event.psi_spec, event.phi_spec) / f_grid
+zeta_bal = np.stack([solver.synth(solver.lap(result.total_psi_spec[k])) for k in interior])
+outside = np.broadcast_to((np.abs(slat) >= config.mirror.blend_north)[:, None], r_bal.shape[1:])
+
+def rms_on(field, mask):
+    return float(np.sqrt(np.mean(field[mask] ** 2))) if mask.any() else float("nan")
+
+def height_of(field, mask):
+    "Invert the Laplacian of the residual restricted to one region; rms poleward of the band, in m."
+    h = solver.synth(solver.inv_lap(solver.analyze(np.where(mask, field, 0.0)))) / G
+    return rms_on(h, outside)
+
+print("posed balance residual as an equivalent vorticity error [s^-1], poleward of the taper band")
+print("  level   balanced, quiet   balanced, strain   observed state   vorticity rms   |  as height [m]: quiet region   strain region")
+for i, k in enumerate(interior):
+    quiet, acted = (limit[i] >= 1.0) & outside, (limit[i] < 1.0) & outside
+    print(f"  {int(levels.p_hpa[k]):5d}   {rms_on(r_bal[i], quiet):15.2e}   {rms_on(r_bal[i], acted):15.2e}   "
+          f"{rms_on(r_obs[i], outside):14.2e}   {rms_on(zeta_bal[i], outside):13.2e}   |  "
+          f"{height_of(r_bal[i] * f_grid, quiet):19.2f}   {height_of(r_bal[i] * f_grid, acted):12.2f}")
+band = ~outside
+print(f"inside the taper band, all levels: balanced {np.sqrt(np.mean(r_bal[:, band] ** 2)):.2e} s^-1 rms, "
+      f"observed {np.sqrt(np.mean(r_obs[:, band] ** 2)):.2e}; the maximum quoted above lives here")
+""")
+
+md(r"""
+Read locally, the balanced state satisfies the posed balance equation poleward
+of the taper band to 1–4 × 10⁻⁷ s⁻¹, in the strain-dominated region as much as
+outside it: two orders of magnitude below the observed state's own imbalance
+of 1.4–2.5 × 10⁻⁵ s⁻¹, and half a percent of the vorticity itself. Inverted
+region by region, the residual is worth 0.2–3 m of height outside the strain
+region and 0.04–0.8 m inside it. Inside the taper band the residual is
+4.6 × 10⁻⁶ s⁻¹, and that is where the 25 m maximum of the report comes from:
+a height norm masked after the inverse Laplacian is not an extratropical
+norm. The potential-vorticity norms of the report have no such step and can be
+read as they are.
 """)
 
 # ---------------------------------------------------------------------------
@@ -467,6 +634,16 @@ else at its climatological value.
 
 The two boundary panels are potential temperature anomalies; the other seven are
 potential vorticity anomalies.
+
+The numbers in the titles are the rms of each induced wind over the hemisphere.
+For this event they climb with height: 3.83 m/s from the surface potential
+temperature, about 2 m/s from each of 850, 700 and 500 hPa, 3.19 at 400,
+7.21 at 300, 10.29 at 250 and 11.73 at 200 hPa — and 14.66 m/s from the 100 hPa
+boundary potential temperature, the largest single piece. That top boundary
+sits 5 km above the level being explained and carries the anomaly of the
+lower-stratospheric temperature, which for a block is large; how much of it is
+"the block" and how much is the lid of the domain is a question the grouping in
+the next section leaves open by putting it with the upper levels.
 """)
 
 code(r"""
@@ -507,6 +684,7 @@ for n, name in enumerate(order):
                  labelpos="E", coordinates="axes", fontproperties={"size": 8})
     mark(ax, lat0, lon0)
     fig.colorbar(m, ax=ax, shrink=0.72, label=unit)
+    print(f"{name:>5s} hPa {kind:22s} induced rms {rms:5.2f} m/s")
 fig.suptitle(f"each level's anomaly (shading) and the {TARGET:.0f} hPa rotational "
              f"wind it induces (arrows)")
 fig.savefig(FIGURES / "fig06_per_level.png")
@@ -526,7 +704,9 @@ troposphere? The pieces are linear in their sources, so they can simply be added
   100 hPa boundary potential temperature
 
 The three groups exhaust the sources, so they sum to the same thing the nine
-panels do.
+panels do. For this event the upper group dominates: 20.68 m/s rms against
+3.83 from the surface and 3.68 from the lower troposphere, beside an observed
+anomaly of 21.09 m/s.
 """)
 
 code(r"""
@@ -554,18 +734,17 @@ for col, (name, u, v) in enumerate(panels):
     ax = event_axes(fig, grid[0, col], lat0, lon0,
                     title=f"{name}   rms {rms:.1f} m s$^{{-1}}$")
     # Colour and arrows are both scaled to the panel's own strength.  The groups
-    # differ by a factor of six here, and one shared scale would leave two of the
-    # four blank; the numbers in the titles are what to compare across panels.
+    # differ by a factor of more than five here, and one shared scale would leave
+    # two of the four blank; the numbers in the titles are what to compare.
     vmax = float(np.percentile(speed[north], 98))
     m = shade(ax, speed, slat, slon, cmap="magma_r", vmin=0, vmax=vmax)
-    # The colour scale is shared so the panels can be compared; the arrows are
-    # scaled panel by panel so a weak group is still readable beside a strong one.
     key = max(1.0, float(np.round(2 * rms)))
     handle = arrows(ax, u, v, slat, slon, scale=18.0 * key)
     ax.quiverkey(handle, 0.78, 0.05, key, f"{key:.0f} m s$^{{-1}}$",
                  labelpos="E", coordinates="axes", fontproperties={"size": 8})
     mark(ax, lat0, lon0)
     fig.colorbar(m, ax=ax, shrink=0.72, label="m s$^{-1}$")
+    print(f"{name:17s} rms {rms:5.2f} m/s")
 fig.suptitle(f"rotational wind at {TARGET:.0f} hPa, grouped by the depth of the source")
 fig.savefig(FIGURES / "fig07_groups.png")
 """)
@@ -584,7 +763,14 @@ merely approximately. If it did not, the decomposition would mean nothing.
 The second is physical: the sum of the pieces against the observed anomalous
 rotational wind. What is left over is the part the balance equations do not
 represent — the divergent and unbalanced flow. It is not an error, and its size
-is worth knowing.
+is worth knowing. For this event the pieces reproduce the all-sources inversion
+to 1.7 parts in 10⁸, sum to 20.01 m/s rms against an observed anomaly of
+21.09 m/s, and leave 3.10 m/s, 15 % of the anomaly. Seen from the other side,
+the balanced total state misses the observed rotational wind by 4.97 m/s rms
+out of 30.99, and the pieces miss the balanced perturbation by 4.14 m/s: the
+first is what the balance equations do not carry, the second is what the
+midpoint linearisation costs where the floors act and, since the mean state
+enters as observed rather than balanced, the imbalance of the mean.
 """)
 
 code(r"""
@@ -606,6 +792,19 @@ print(f"observed anomaly     {rms(u_obs, v_obs):6.2f} m/s")
 print(f"sum of the pieces    {rms(u_sum, v_sum):6.2f} m/s")
 print(f"left over            {rms(residual_u, residual_v):6.2f} m/s"
       f"  ({100 * rms(residual_u, residual_v) / rms(u_obs, v_obs):.0f} % of the anomaly)")
+
+# The same residual seen from the other side.  The balanced total state is the
+# nonlinear inversion of all the event's sources; its rotational wind against the
+# observed one is the part of the flow the balance equations do not carry, and
+# the pieces against the balanced perturbation is what the midpoint
+# linearisation costs (the piece sum reproduces the linearised total exactly,
+# the balanced perturbation only up to the floors and the limiter).
+u_bal, v_bal = rotational_wind_stack(solver, result.total_psi_spec)
+u_bp, v_bp = rotational_wind_stack(solver, result.psi_perturbation)
+u_full, v_full = rotational_wind_stack(solver, event.psi_spec)
+print(f"balanced total vs observed rotational wind   {rms(u_full[k250] - u_bal[k250], v_full[k250] - v_bal[k250]):6.2f} m/s"
+      f"  (observed rotational wind rms {rms(u_full[k250], v_full[k250]):.2f} m/s)")
+print(f"sum of the pieces vs balanced perturbation   {rms(u_sum - u_bp[k250], v_sum - v_bp[k250]):6.2f} m/s")
 
 fig = plt.figure(figsize=(14, 4.6), constrained_layout=True)
 grid = fig.add_gridspec(1, 3)
@@ -645,9 +844,33 @@ plat, plon = polar_ev["lat"].values, polar_ev["lon"].values
 polar_solver = SphereOps(SHT(gaussian_grid(96, 192), lmax=63))
 p_event = prepare_state(*fields(polar_ev), plat, plon, levels, polar_solver)
 p_clim = prepare_state(*fields(polar_cl), plat, plon, levels, polar_solver)
+started = time.time()
 p_result = invert_pieces(polar_solver, levels, p_clim, p_event, cfg=config)
+p_report = p_result.diagnostics
 print(f"Newton: {p_result.newton_steps} steps, "
-      f"converged {p_result.diagnostics['newton_converged']}")
+      f"converged {p_report['newton_converged']}, "
+      f"final increment {p_report['newton_final_increment_m']:.3f} m, "
+      f"elapsed {time.time() - started:.0f} s")
+p_norms = p_report["newton_final_norms"]
+print(f"posed-equation residuals poleward of {config.mirror.blend_north:.0f} N: "
+      f"balance max {p_norms['balance_m_extratropics']:.3f} m, "
+      f"PV rms {p_norms['pv_pvu_rms_extratropics']:.5f} PVU")
+print("deformation limiter active (total): " +
+      ", ".join(f"{int(levels.p_hpa[k])}:{100 * v:.1f}%"
+                for k, v in zip(interior, p_report["newton_deformation_fraction"])))
+
+p_summed = p_result.summed_psi()
+p_total, p_total_report = all_sources_inversion(polar_solver, levels, p_clim, p_event, cfg=config)
+print(f"sum of pieces vs all sources at once: "
+      f"{np.abs(p_summed - p_total).max() / np.abs(p_total).max():.2e}")
+u_psum, v_psum = rotational_wind_stack(polar_solver, p_summed)
+u_pobs, v_pobs = rotational_wind_stack(polar_solver, p_event.psi_spec - p_clim.psi_spec)
+p_north = polar_solver.grid.lat > 0
+def p_rms(a, b):
+    return float(np.sqrt(np.mean(a[k250][p_north] ** 2 + b[k250][p_north] ** 2)))
+print(f"observed anomaly {p_rms(u_pobs, v_pobs):6.2f} m/s, sum of the pieces {p_rms(u_psum, v_psum):6.2f} m/s, "
+      f"left over {p_rms(u_pobs - u_psum, v_pobs - v_psum):6.2f} m/s "
+      f"({100 * p_rms(u_pobs - u_psum, v_pobs - v_psum) / p_rms(u_pobs, v_pobs):.0f} % of the anomaly)")
 
 import cartopy.crs as ccrs
 import matplotlib.path as mpath
@@ -701,7 +924,10 @@ fig.savefig(FIGURES / "fig09_polar.png")
 md(r"""
 The pole sits inside every panel and there is nothing special about it. That is
 the whole point of doing the inversion globally: the method does not know where
-the event is.
+the event is. The Greenland case converges in five Newton steps to a final
+increment of 0.003 m, the pieces reproduce the all-sources inversion to
+5.1 parts in 10⁹, and they leave 4.17 m/s of a 20.25 m/s anomaly, 21 %,
+unattributed.
 """)
 
 

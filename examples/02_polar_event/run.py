@@ -25,8 +25,8 @@ distance from the centre, and the earth's pole is an ordinary interior point wit
 nothing special about it.  For the 80N event it lies inside the disc, which is
 exactly the case a windowed chain cannot reach and what this figure is for.
 
-    PYTHONPATH=src micromamba run -n blocking python experiments/exp02_polar_cap/run.py
-    PYTHONPATH=src micromamba run -n blocking python experiments/exp02_polar_cap/run.py --from-cache
+    PYTHONPATH=src micromamba run -n blocking python examples/02_polar_event/run.py
+    PYTHONPATH=src micromamba run -n blocking python examples/02_polar_event/run.py --from-cache
 """
 from __future__ import annotations
 

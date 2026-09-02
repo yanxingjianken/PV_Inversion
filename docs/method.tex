@@ -6,6 +6,7 @@
 \usepackage{graphicx}
 \usepackage[margin=2.4cm]{geometry}
 \usepackage{booktabs}
+\usepackage{array}
 \usepackage{hyperref}
 
 \hypersetup{colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue}
@@ -140,9 +141,10 @@ $\tilde{(\ )}=\bar{(\ )}+\tfrac12(\ )'$ & the state the operator is frozen at \\
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/fig01_event.png}
-\caption{The event and the climatology it is measured against. The difference
-between the two states is what is decomposed: anomalous potential vorticity in
-the interior, anomalous potential temperature on the top and bottom boundaries.}
+\caption{The event: wind speed at 250\,hPa, and the 500\,hPa height anomaly
+against the climatology. The difference between the two states is what is
+decomposed: anomalous potential vorticity in the interior, anomalous potential
+temperature on the top and bottom boundaries.}
 \end{figure}
 
 % =============================================================================
@@ -181,24 +183,34 @@ S \;=\; -\dd{\theta}{\Pi} \;=\; \ddd{\Phi}{\Pi} ,
 \end{equation}
 which is the coefficient multiplying the absolute vorticity in the
 potential-vorticity relation of Section~\ref{sec:pv}. So the same three-point
-second difference in $\Pi$ supplies the stability inside the equation and the
-boundary condition at its ends; they cannot be discretised inconsistently
-because they are the same stencil (Section~\ref{sec:bc}).
+second difference in $\Pi$ supplies the stability inside the equation, the
+boundary condition at its ends and, by default, the potential-vorticity source
+itself, which is evaluated from the data with that stencil rather than with an
+independent one (Section~\ref{sec:pv}); they cannot be discretised
+inconsistently because they are the same stencil (Section~\ref{sec:bc}).
 
 \subsection*{The levels}
 
 The default set is nine pressure levels. The two outermost are \emph{not}
 unknowns: they carry boundary potential temperature, and the seven between them
-carry potential vorticity. The boundary values are layer averages,
+carry potential vorticity. The boundary values live on the two half levels,
+near 925 and near 140~hPa, and by default they are the hydrostatic differences
+of the geopotential across those half levels,
 \begin{equation}
-\theta_B = \tfrac12\left(\theta_{1000} + \theta_{850}\right),
+\theta_B = -\frac{\Phi_{850}-\Phi_{1000}}{\Pi_{850}-\Pi_{1000}},
 \qquad
-\theta_T = \tfrac12\left(\theta_{200} + \theta_{100}\right),
+\theta_T = -\frac{\Phi_{100}-\Phi_{200}}{\Pi_{100}-\Pi_{200}},
+\label{eq:thetahalf}
 \end{equation}
-which places them near 925 and near 140~hPa. Davis and Emanuel (1991, p.~1936)
-do the same thing: their lower boundary temperature is the mean between 1000 and
-850~mb, their upper boundary value sits near 125~mb, and their potential
-vorticity is carried on the levels in between.
+which is \eqref{eq:hydrostatic} evaluated with the same two-point difference
+the operator's ghosts use (Section~\ref{sec:bc}). The layer averages
+$\tfrac12(\theta_{1000}+\theta_{850})$ and $\tfrac12(\theta_{200}+\theta_{100})$
+are the alternative, kept as the \code{data} convention of
+Section~\ref{sec:pv}; for hydrostatically consistent data the two agree to a
+few kelvin. Davis and Emanuel (1991, p.~1936) place the boundaries in the same
+way: their lower boundary temperature is the mean between 1000 and 850~mb,
+their upper boundary value sits near 125~mb, and their potential vorticity is
+carried on the levels in between.
 
 \begin{center}
 \small
@@ -397,6 +409,44 @@ $\grad(\partial\Phi/\partial\Pi)=-\grad\theta$. Both are formed as pointwise
 products on the grid and transformed back, so no metric factor is ever
 evaluated.
 
+\subsection*{Evaluating the source from the data}
+
+The right-hand side of \eqref{eq:pvsolved} has to be evaluated from the
+observed event and the observed climatology before either can be inverted, and
+there is a choice of stencils. By default (\code{pv\_source="operator"}) the
+source is evaluated with the inversion's own: $\partial^2\Phi/\partial\Pi^2$ by
+the three-point non-uniform second difference of
+Section~\ref{sec:discretisation}, applied to the observed geopotential on all
+nine levels; the two boundary temperatures as the hydrostatic differences
+\eqref{eq:thetahalf} of that geopotential across the half levels; and the shear
+terms $\partial\psi/\partial\Pi$ and $\partial\Phi/\partial\Pi$ by centred first
+differences over the interior levels, which at the first and last interior
+level reach the operator's ghosts --- the geopotential's hydrostatic ghost and
+the streamfunction's thermal-wind ghost \eqref{eq:psighost} --- rather than the
+observed 1000 and 100~hPa fields (Section~\ref{sec:bc}). The observed pair
+$(\psi,\Phi)$ then satisfies the discrete potential-vorticity relation exactly,
+apart from the floor, and the total inversion has to move the geopotential only
+for the balance row, not to absorb a discrepancy between two discretisations of
+the same quantity.
+
+The limited-area convention is kept as \code{pv\_source="data"}:
+stratification and shear from plain centred differences of the temperature and
+the wind over the full level set, and the boundary temperature as the mean of
+the two levels beside the half level. On the stretched Exner mesh the two
+differ by 5--14\% of the potential vorticity, level by level, on the
+walkthrough event, and by 1.4~K rms at the bottom boundary and 2.6~K at the
+top; the difference is a property of the mesh, not of the data.
+
+The operator source takes the geopotential and the temperature to be
+hydrostatically consistent, and the assumption is checked rather than trusted:
+the area mean of the boundary temperature the geopotential implies, over the
+one the temperature gives, is formed at both boundaries, and a run stops if the
+top ratio lies outside 0.7--1.4. For real data both ratios are within a percent
+of one --- 1.002 at the bottom and 0.995 at the top for the walkthrough event
+and for its climatology alike --- whereas a potential temperature supplied as
+temperature, or a height supplied as geopotential, moves the top ratio far from
+one while passing every other check.
+
 The unit is the potential-vorticity unit,
 $1~\text{PVU}=10^{-6}$~m$^2$~K~kg$^{-1}$~s$^{-1}$. A typical tropospheric value
 is 0.5~PVU and stratospheric values are roughly an order of magnitude larger;
@@ -556,6 +606,48 @@ This is a check and not the production path, precisely because
 \eqref{eq:deform} evaluates $\tan\varphi$ and therefore degrades towards the
 poles, while \eqref{eq:Nform} does not.
 
+\textbf{The polarised form, and where the row is elliptic.} The quadratic part
+of \eqref{eq:Nform} is
+$Q(\psi)=\grad\cdot(\zeta\grad\psi)-\tfrac12\lap|\grad\psi|^2$, and the
+symmetric bilinear form it comes from is
+\begin{equation}
+B(a,b) = \grad\cdot\left(\zeta_a\grad b\right)
+ + \grad\cdot\left(\zeta_b\grad a\right)
+ - \lap\left(\grad a\cdot\grad b\right)
+ = \zeta_a\zeta_b - \left(D_{1a}D_{1b} + D_{2a}D_{2b}\right)
+ - \frac{2\,\grad a\cdot\grad b}{a^2},
+\label{eq:polarised}
+\end{equation}
+with $B(\psi,\psi)=2Q(\psi)$; it is \eqref{eq:curvature} polarised. Everything
+said below about linearising the balance equation rests on this form. The
+tangent of the balance row at a reference $\tilde\psi$ is
+$\grad\cdot(f^{*}\grad\psi') + B(\tilde\psi,\psi')$, and the principal symbol
+of that operator has the two eigenvalues
+\begin{equation}
+f^{*} + \tilde\zeta \mp \tilde D ,
+\qquad
+\tilde D = \left(\tilde D_1^2 + \tilde D_2^2\right)^{1/2},
+\label{eq:symbol}
+\end{equation}
+so the linearised balance row is elliptic exactly where the absolute vorticity
+of the reference flow exceeds its total deformation. This is Charney's
+condition in another guise: since
+$(f+\zeta)^2 - D^2 = 4\det\left(\mathrm{Hess}\,\psi + \tfrac12 f I\right)$, and
+by the balance equation itself that determinant is
+$\tfrac12\lap\Phi + \tfrac14 f^2$ apart from the $\beta$ term, the row is
+elliptic where $\lap\Phi/f + f/2 > 0$. Where the deformation wins --- on the
+flanks of a strong jet or anticyclone, a tenth to a seventh of the area of the
+jet level on the winter events of Section~\ref{sec:discretisation} --- the
+linearised system is indefinite there. What the package does about it is
+described in that section.
+
+The deformation magnitude $\tilde D$ that this needs is not formed from
+\eqref{eq:deform}. It is read off the identity \eqref{eq:polarised} with $a=b$,
+$\tilde D^2 = \tilde\zeta^2 - B(\tilde\psi,\tilde\psi) - 2|\grad\tilde\psi|^2/a^2$,
+every term of which is a divergence, a Laplacian or a gradient formed
+spectrally; so it stays regular at the poles, where the strain-rate components
+--- which expand the wind components as scalars --- do not.
+
 The Coriolis parameter in \eqref{eq:Nform} is $f^{*}$, the floored form of
 Section~\ref{sec:mirror}, not the true $f$. The reason is visible in
 \eqref{eq:fdivgrad}: the balance term differentiates $f$, and $|f|$ on a
@@ -588,9 +680,13 @@ Three properties of the system decide everything that follows.
 \textbf{It is elliptic only conditionally.} Both equations are elliptic where
 the absolute vorticity $f^{*}+\lap\psi$ and the static stability
 $\partial^2\Phi/\partial\Pi^2$ are positive (Davis and Emanuel 1991,
-Appendix~A). Where either changes sign the character of the problem changes with
-it, and no amount of iteration will recover a solution. The floors of
-Section~\ref{sec:choices} exist for this reason and for no other.
+Appendix~A), and the balance row asks for more: its linearisation is elliptic
+only where the absolute vorticity of the reference flow exceeds the
+deformation, \eqref{eq:symbol}. Where either condition fails the character of
+the problem changes with it, and no amount of iteration will recover a
+solution. The floors of Section~\ref{sec:choices} exist for the first
+condition and the deformation limiter of Section~\ref{sec:discretisation} for
+the second, and for no other reason.
 
 \textbf{It is nonlinear, but only mildly.} Equation~\eqref{eq:sys1} is quadratic
 in $\psi$. Equation~\eqref{eq:sys2} is bilinear in $(\psi,\Phi)$: every term is
@@ -626,7 +722,8 @@ to the piecewise inversion --- and notes that the discrepancy this introduces is
 of the order of the departure of those fields from balance, which is generally
 small. Here only the mean is taken as observed; the event is balanced properly.
 The consequence appears in the physical residual of Section~\ref{sec:closure},
-never in the closure of the pieces.
+never in the closure of the pieces, and it is measured there as the gap between
+the sum of the pieces and the balanced perturbation.
 
 % =============================================================================
 \section{The piecewise linearisation}
@@ -731,14 +828,26 @@ $A$ & $f^{*}+\tilde\zeta$, absolute vorticity, floored & potential-vorticity row
 $S$ & $\partial^2\tilde\Phi/\partial\Pi^2$, static stability, floored & potential-vorticity row \\
 $\grad(\partial\tilde\psi/\partial\Pi)$ & reference shear of the streamfunction & cross terms \\
 $\grad(\partial\tilde\Phi/\partial\Pi)$ & reference shear of the geopotential & cross terms \\
+$w$ & equatorial taper weight (Section~\ref{sec:mirror}) & every quadratic term \\
+$s$ & deformation limiter (Section~\ref{sec:limiter}) & balance row, deformation part \\
 \bottomrule
 \end{tabular}
 \end{center}
 
+The last two are not coefficients of the equations but weights on their
+products; both are fixed before any piece is solved and are the same for every
+piece.
+
 The two reference vertical derivatives are centred over the full set of levels,
-including the two outermost ones. No ghost is needed for them, because
-$\bar\Phi$ and $\bar\psi$ are known everywhere; only the unknown needs the
-boundary treatment of Section~\ref{sec:bc}.
+including the two outermost ones. On those two rows the reference state does
+not carry the data's own 1000 and 100~hPa fields: its boundary levels are
+rebuilt as the ghosts of Section~\ref{sec:bc} --- the geopotential
+hydrostatically from the reference boundary temperature
+$\bar\theta+\tfrac12\theta'$, the streamfunction from \eqref{eq:psighost} ---
+exactly as the balanced total state carries them. A reference that mixed the
+observed boundary levels with a balanced state's ghosts would give the
+stability and the cross-term coefficients at the first and last interior
+levels the tangent of neither system.
 
 \subsection{Why the linearisation is exact}
 
@@ -807,9 +916,11 @@ Four facts, each of which can be checked independently.
 
 \textbf{One operator.} The frozen coefficients, the assembled operator and its
 preconditioner are built once, outside the loop over pieces. Every piece is one
-solve against the same $M$. The floors and the equatorial taper are baked into
-it identically for all pieces --- which is why the taper is applied to
-coefficients and never to a source or to a solution.
+solve against the same $M$. The floors, the equatorial weight and the
+deformation limiter are baked into it identically for all pieces --- which is
+why the taper is a weight on the operator's products and never on a source or
+a solution, and why the pieces take the limiter the total inversion converged
+with rather than deciding one of their own.
 
 \textbf{The right-hand side is linear in the source.} The balance row's
 right-hand side is identically zero apart from the gauge slot of
@@ -817,16 +928,20 @@ Section~\ref{sec:discretisation}. The potential-vorticity row's is
 \begin{equation}
 b_2 = \hat q_n
  - A\,\Theta\!\left(\theta_{B,n},\theta_{T,n}\right)
+ - (1-w)\,\tilde\zeta\,\big\langle\Theta\big\rangle
  + \grad\!\left(\dd{\tilde\psi}{\Pi}\right)\cdot\grad\Phi^{\text{gh}}_{n}
  + \grad\!\left(\dd{\tilde\Phi}{\Pi}\right)\cdot\grad\psi^{\text{gh}}_{n},
 \end{equation}
-where $\Theta$ is the folded boundary source of Section~\ref{sec:bc} and the two
-ghost contributions are the boundary parts of the first differences in $\Pi$
-inside the cross terms. Every one of those maps is linear in
-$\left(\hat q_n,\theta_{B,n},\theta_{T,n}\right)$: $\Theta$ is linear, the ghost
-of a first difference is linear, and the streamfunction ghost
-\eqref{eq:psighost} is linear, being an area-mean removal followed by division
-by a fixed $f^{*}$.
+where $\Theta$ is the folded boundary source of Section~\ref{sec:bc}, the third
+term is the boundary part of the taper's partner term \eqref{eq:partner}, and
+the two ghost contributions are the boundary parts of the first differences in
+$\Pi$ inside the cross terms. The boundary temperatures pass through the
+spectral truncation before any of this is formed, so the right-hand side sees
+exactly the temperature the reference state's ghosts were built from. Every
+one of those maps is linear in $\left(\hat q_n,\theta_{B,n},\theta_{T,n}\right)$:
+$\Theta$ is linear, the ghost of a first difference is linear, and the
+streamfunction ghost \eqref{eq:psighost} is linear, being an area-mean removal
+followed by division by a fixed $f^{*}$.
 
 \textbf{The sources partition exactly.} Each interior level's anomaly goes to
 one piece and each boundary temperature to one piece, and their sum is the whole
@@ -893,8 +1008,9 @@ one boundary temperature alone: the operator is shared, only the source changes.
 The boundary temperature enters \emph{twice}, and the second place is easy to
 miss. Besides the static-stability term, the cross terms of \eqref{eq:E2}
 contain first differences in $\Pi$, and a centred first difference at the first
-interior level reaches the ghost too. Both contributions are assembled from one
-call to the vertical operator so that they cannot drift apart.
+interior level reaches the ghost too. Both contributions come from the same
+vertical operator and the same ghost convention, so that they cannot drift
+apart.
 
 \subsection{The streamfunction at the boundaries}
 
@@ -926,10 +1042,20 @@ the temperature carries no flow and must not reach the streamfunction. Divided
 by $f$ without it, the ghost is of order $10^{8}$~m$^2$~s$^{-1}$ --- larger than
 the streamfunction itself.
 
-The same convention is used in three places --- the right-hand side of the
-linear operator, the nonlinear residual, and the reconstruction of the boundary
-levels --- because any two of them disagreeing leaves a converged state failing
-its own equations.
+The same convention is used everywhere a streamfunction is needed on the two
+outermost rows: in the right-hand side of the linear operator, in the
+nonlinear residual, in the reconstruction of the balanced total state's
+boundary levels after every Newton step, in the reference state the pieces are
+frozen at, in the 1000 and 100~hPa rows of every piece, and in the shear terms
+of the potential-vorticity source when it is evaluated with the operator's
+stencils (Section~\ref{sec:pv}). Any two of them disagreeing leaves a converged
+state failing its own equations. For a piece the ghost is built from that
+piece's own boundary-temperature anomaly --- zero for an interior piece --- so
+the 1000 and 100~hPa rows of a piece are the thermal-wind extension of its
+solved interior and nothing else. Handing those rows the geopotential's ghost
+instead adds a quantity of the wrong dimensions that is numerically small
+enough to pass unnoticed, and the delivered boundary winds of every piece are
+then simply those of the level next to them.
 
 \subsection{Why there is no condition at the side}
 
@@ -1029,7 +1155,37 @@ x = \mathrm{clip}\!\left(\frac{|\varphi|-\varphi_S}{\varphi_N-\varphi_S},\,0,\,1
 with $\varphi_S=5^\circ$ and $\varphi_N=20^\circ$ by default, so $w$ and its
 first two derivatives are continuous at both ends.
 
-The taper is applied to coefficients only --- never to $f^{*}$, never to a
+How the weight is applied matters as much as its shape. It multiplies the
+\emph{products} the quadratic terms are built from, not one argument of them.
+In the balance row the tangent of the quadratic part is
+\begin{equation}
+T[\psi'] = w\,\tilde\zeta\,\zeta'
+ + w\,s\left[B(\tilde\psi,\psi') - \tilde\zeta\,\zeta'\right],
+\label{eq:tapered}
+\end{equation}
+with $B$ the polarised form \eqref{eq:polarised}, $\tilde\zeta\zeta'$ its
+vorticity part evaluated pointwise, the bracket its deformation-and-curvature
+part in the exact divergence form, and $s$ the deformation limiter of
+Section~\ref{sec:discretisation}, equal to one wherever the limiter is not
+acting. In the potential-vorticity row the stability is tapered towards its
+level mean, $\tilde S\to\langle\tilde S\rangle + w\,(\tilde S-\langle\tilde S\rangle)$,
+and the term that keeps the bilinear form symmetric goes with it: the
+perturbation's own level-mean stratification against the untapered reference
+vorticity, where the taper acts,
+\begin{equation}
+(1-w)\,\tilde\zeta\,\big\langle\Phi'_{\Pi\Pi}\big\rangle .
+\label{eq:partner}
+\end{equation}
+Because $w$ and $s$ are frozen fields multiplying symmetric products, the
+tapered system is still an exact quadratic with a symmetric bilinear form, and
+the midpoint identities \eqref{eq:idquad}--\eqref{eq:idbilin} hold with the
+taper on. Tapering the reference vorticity alone, and rebuilding the reference
+streamfunction from it, gives a row whose two arguments are different flows:
+its bilinear form is not symmetric, the midpoint identity fails inside the
+band, and the frozen operator is no longer the exact finite-increment operator
+there.
+
+The taper is applied to the operator only --- never to $f^{*}$, never to a
 source, never to a solution. That is what keeps the operator identical across
 pieces and leaves the exact closure of Section~\ref{sec:pieces} untouched.
 
@@ -1050,15 +1206,16 @@ taper weight $w$ & 0 & 0 & 0 & 0 & 0.21 & 0.26 & 0.79 & 1.00 & 1.00 \\
 \end{center}
 
 At 10.5~N the Coriolis parameter is half as large again as the true one, and
-74\% of the reference vorticity has been removed from the operator's
-coefficients. The ratio is still 1.04 at 45~N.
+the operator's quadratic terms carry 26\% of their weight. The ratio is still
+1.04 at 45~N.
 
 The consequence is a rule, not a caveat: \textbf{nothing about the subtropical
 part of a solution should be quoted as physics without re-running with a smaller
 Coriolis floor and a narrower taper, and reporting how much of it survives.} A
-patch centred below about 42~N reaches into the band; a patch centred below the
-data's own southernmost row reaches into the mirrored scaffold, and those rows
-are returned blank rather than filled with reflected weather.
+patch of half-width 30 degrees centred below about 50~N reaches into the band;
+one centred below about 42~N reaches south of the data's own first row into the
+mirrored scaffold, and those rows are returned blank rather than filled with
+reflected weather.
 
 \begin{figure}[htbp]
 \centering
@@ -1174,13 +1331,22 @@ level's mean streamfunction.
 
 The remaining constant is removed by a rank-one term on the potential-vorticity
 row, proportional to the column mean of $\Phi_n$'s $n=0$ coefficient, with a
-coefficient chosen comparable to the operator's own diagonal.
+coefficient comparable to the operator's own diagonal but built from the
+Coriolis parameter and the vertical stencil alone, so that it is the same
+number for every reference state. A scale that moved with the reference would
+make that one row bilinear in the state, and the residual's Jacobian inexact
+in that slot. For the same reason the nonlinear iteration removes the observed
+state's level-mean geopotential before its first step: the gauge pins that
+mean to zero, an observed state carries the geopotential of the middle
+troposphere in it, and removing it is a pure gauge shift that carries no wind
+and leaves the first residual and the first line search about the physics.
 
 On a limited-area domain a Dirichlet wall does both of these implicitly, and
 also absorbs any global imbalance between the area-mean potential vorticity and
 the boundary temperature. Globally that imbalance appears instead as a
-compatibility condition on the $n=0$ column, whose removed magnitude is reported
-rather than discarded silently.
+compatibility condition on the $n=0$ column; the rank-one gauge term makes that
+column solvable, and the potential-vorticity residual reported at the end is
+where any incompatibility would show.
 
 \subsection{The preconditioner}
 
@@ -1217,7 +1383,7 @@ ellipticity requirement as the system itself.
 
 Each piece is one preconditioned Krylov solve. The default is GMRES with restart
 60 and a relative tolerance of $10^{-8}$. The iteration budget is stated as a
-number of operator applications (400 by default) and converted internally to
+number of operator applications (800 by default) and converted internally to
 restart cycles. A solve is reported as converged only if the solver says so
 \emph{and} an independently recomputed $\|b-Mx\|/\|b\|$ is below
 $\max(10\,\text{rtol},10^{-10})$, which at the defaults is $10^{-7}$. A solve
@@ -1247,23 +1413,111 @@ The remaining ingredients:
 
 \begin{itemize}
 \itemsep0.1em
-\item \textbf{Forcing term.} The linear tolerance for step $k$ is
-      $\min\!\left(0.1,\ \max(\text{rtol},\ 0.1\,\|r_k\|/\|r_0\|)\right)$,
-      normalised by the first residual. Step 0 therefore uses $0.1$.
+\item \textbf{First guess.} The observed state, with its level-mean
+      geopotential removed (the gauge, above).
+\item \textbf{Inner tolerance.} Fixed: every linear solve is run to the Krylov
+      tolerance of $10^{-8}$. A forcing term of the Eisenstat--Walker kind,
+      which relaxes the inner tolerance while the outer residual is large, is
+      available behind a flag; it measured worse on this problem and is off.
 \item \textbf{Line search.} Backtracking by halves, up to eight times, accepting
       the first step with
-      $\|F(x+s\delta)\| \le (1-10^{-4}s)\|F(x)\|$. If all eight fail,
-      $s=2^{-8}$ is taken and the iteration continues.
+      $\|F(x+s\delta)\| \le (1-10^{-4}s)\|F(x)\|$. If all eight fail, the failure
+      is recorded and, far from convergence, the deformation limiter (below) is
+      brought in and the step is retaken on the regularised system; only when
+      no tightening is possible is the best step tried applied, which may be
+      no step at all.
 \item \textbf{Stopping rule.} The largest geopotential increment over the
       interior grid below $0.981$~m$^2$~s$^{-2}$, which is $g$ times $0.1$~m,
+      reached by a step whose line search succeeded --- a small increment
+      produced by a line search that gave up is a stall, not convergence ---
       with a cap of 20 steps. A run that hits the cap is recorded, not raised,
-      and reports how far short it stopped in metres --- a Boolean cannot
+      and reports how far short it stopped in metres: a Boolean cannot
       distinguish an iteration asymptoting a hair above tolerance from one
       stalled an order of magnitude above it, and the difference decides whether
       the result is usable.
 \item \textbf{Boundary levels} are rebuilt hydrostatically after every step:
       $\Phi$ from $\theta$ directly, $\psi$ from \eqref{eq:psighost}.
+\item \textbf{What ``converged'' means physically.} Beside the increment, the
+      report carries the residuals of the equations \emph{as posed} --- without
+      taper, floors or limiter --- at the returned state: the balance residual
+      inverted to a height in metres and the potential-vorticity residual in
+      PVU, each as a global maximum and as a maximum poleward of the taper
+      band, the potential-vorticity one also as an rms there (with a caveat on
+      the balance one, stated in
+      Section~\ref{sec:choices}). It also carries the area fraction per level
+      on which the linearised balance row is not elliptic at the returned
+      state.
 \end{itemize}
+
+\subsection{The deformation limiter}
+\label{sec:limiter}
+
+The linearised balance row is elliptic only where the absolute vorticity of
+the reference flow exceeds its deformation, \eqref{eq:symbol}. On the flanks
+of a strong jet or anticyclone it does not --- over a tenth to a seventh of
+the area of the jet level on the winter events below --- and the linearised
+system is indefinite there. A preconditioned Krylov solve usually gets through
+an indefinite region that small. What it cannot do is carry a Newton iteration
+across a fold of such a system, and an iteration whose path meets one
+oscillates without descending.
+
+The safety net for that case scales the deformation part of the balance row
+alone. With the tangent written as in \eqref{eq:tapered},
+\begin{equation}
+s = \min\!\left(1,\ \frac{(1-m)\,A}{w\,\tilde D}\right),
+\qquad m = 0.05 \text{ by default},
+\label{eq:limiter}
+\end{equation}
+so that the symbol \eqref{eq:symbol} becomes $A \mp s\,w\,\tilde D \ge m\,A$
+and the row is elliptic wherever $A$ is positive. The vorticity part
+$\tilde\zeta\zeta'$, which is what gradient-wind balance lives on, is
+untouched. Scaling the whole quadratic part instead, vorticity included, would
+remove the relative vorticity from the effective Coriolis parameter in every
+strain region; it is not what is done.
+
+The limiter is a frozen field, one factor per interior level on the grid, and
+that is what keeps Newton exact: while it does not change, the residual is one
+quadratic system and the Jacobian is its derivative, and the same $s$ is handed
+to the residual, to the Jacobian and to the half-state operator that
+evaluates $F(x)=J_{x/2}[x]+F(0)$, so the three describe one regularised
+system. By default it starts as one everywhere --- the balance equation as
+posed --- and is brought in only on evidence of a fold: an inner solve that
+runs out of its budget, a line search that fails, or stagnation, meaning three
+or more halvings with a residual that has not fallen by half. Every refresh
+takes the pointwise minimum of the limiter in force, the observed state's
+limiter --- which covers every strain-dominated region the data hold --- and the
+current iterate's own. Refreshes only ever lower it, at most six are
+allowed in one solve, each is counted and reported, and a failed line search
+at rounding level does not trigger one. Two other policies are available:
+decide the limiter once from the observed state before the first step, or
+never limit. The pieces take the limiter the total inversion converged with,
+so their operator is the tangent of the same regularised system at its
+midpoint.
+
+Where the limiter acts, the solved balance equation is the Davis--Emanuel
+equation with a fraction $1-s$ of its deformation-and-curvature part removed
+at those points, and the balance residual reported against the posed equation
+shows exactly that. The area fraction per level on which $s<1$ is published
+with every run, for the total inversion and for the pieces.
+
+What this buys is measured on the walkthrough event and on the fifty winter
+blocking events of the catalogue example (Section~\ref{sec:running}). The
+walkthrough event converges in five Newton steps, with increments of 308,
+21.6, 1.50, 0.12 and 0.037~m and no backtracking at any step; the limiter is
+never brought in, no inner solve stops short of its tolerance, and the balance
+equation is solved exactly as posed, although the linearised row is not
+elliptic at the returned state on 1.5\% of the area at 850~hPa rising to 14\%
+at 300~hPa. Of the fifty catalogue events, at truncation 84, all converge:
+45 in four Newton steps, three in five, and two --- the ones that meet a fold,
+one of them through an inner solve that ran out of its budget --- bring the
+limiter in once and finish in nine and ten steps, with the limiter acting on
+at most 17\% of a level's area. Read locally, the balanced state of the
+walkthrough satisfies the posed balance equation poleward of the taper band
+to $1$--$4\times10^{-7}$~s$^{-1}$ of equivalent vorticity, in the
+strain-dominated region as much as outside it, against an imbalance of
+$1.4$--$2.5\times10^{-5}$~s$^{-1}$ in the observed state; the posed
+potential-vorticity equation is met to 0.0040~PVU rms poleward of 20~N, and
+to 0.0019--0.0079~PVU rms across the fifty catalogue events.
 
 Uniqueness of the converged state is an empirical claim, not a proved one. Davis
 and Emanuel (1991, p.~1935) report that as long as the potential vorticity was
@@ -1274,11 +1528,20 @@ statement here as well.
 
 \subsection{Cost}
 
-Measured at truncation 63 on a $96\times192$ solver grid with nine levels: one
-operator application takes about 18~ms; a preconditioned solve of a manufactured
-problem converges in 33 GMRES iterations to $6\times10^{-11}$; a real event
-takes about two minutes end to end, its Newton iteration converging in about a
-dozen steps and each of its nine pieces in 35--51 Krylov iterations.
+Measured at truncation 63 on a $96\times192$ solver grid with nine levels: a
+preconditioned solve of a manufactured problem converges in 34 GMRES
+iterations to $10^{-10}$ relative; the walkthrough event's Newton iteration
+converges in five steps, and each of its nine pieces in 44--61 Krylov
+iterations. One operator application is a handful of spectral transforms,
+which are dense matrix products, so its wall time depends on the BLAS threading
+and on what else the machine is doing: about 80~ms with one BLAS thread on a
+node shared with several hundred other processes, which is an upper bound, and
+several times longer with eight threads on the same node, where the threads
+only contend. The walkthrough's total and piecewise inversion, run with eight
+BLAS threads on that loaded node, took about ten minutes; the fifty catalogue
+events at truncation 84 on a $128\times256$ grid, one BLAS thread each, took
+12 minutes on 25 workers, with the two events that brought the limiter in
+finishing last.
 
 \begin{figure}[htbp]
 \centering
@@ -1303,19 +1566,24 @@ Two things to know before reading amplitudes off such a figure.
 
 \textbf{The two outermost levels of every piece are hydrostatic extensions, not
 solved levels.} Their values are the level next to them plus a boundary
-temperature term. Interior levels are the solved ones. In the current
-implementation the streamfunction's extension at those two rows uses the
-geopotential's ghost rather than \eqref{eq:psighost}; the interior levels and
-the closure are unaffected, because the discrepancy is linear in $\theta$ and
-cancels in the sum, but an amplitude quoted on the 1000 or 100~hPa row of a
-single piece should be read with that in mind.
+temperature term: the geopotential's from hydrostatic balance, the
+streamfunction's from the thermal-wind ghost \eqref{eq:psighost} built on that
+piece's own boundary-temperature anomaly. Interior levels are the solved ones,
+and an amplitude quoted on the 1000 or 100~hPa row of a piece is the extension
+of its solved interior, not an independent result.
 
-\textbf{A large piece is not necessarily a relevant one.} The top-boundary piece
-in particular can reach tens of metres per second while projecting almost
-nothing onto the event, because a planetary-scale temperature anomaly at
-100~hPa has a Rossby depth exceeding the domain and its response is deep and
-nearly barotropic. It largely cancels against the upper-level pieces. Amplitude
-and projection are different questions and should be reported separately.
+\textbf{A large piece is not necessarily a relevant one.} The top-boundary
+piece is the largest single piece of the walkthrough event: 14.7~m~s$^{-1}$
+rms at 250~hPa over the northern hemisphere, against 11.7 for the 200~hPa
+piece, 10.3 for 250~hPa, 7.2 for 300~hPa, and 21.1 for the observed anomaly.
+A planetary-scale temperature anomaly at the top boundary has a Rossby depth
+exceeding the domain, so its response is deep and nearly barotropic, and part
+of it cancels against the interior upper-level pieces: the upper group of
+Section~\ref{sec:groups}, which contains all five, comes to 20.7~m~s$^{-1}$,
+below the root-sum-square of its members. Amplitude and projection are
+different questions and should be reported separately; how much of the top
+boundary's response is physical and how much belongs to where the lid is
+placed is a question the decomposition itself does not answer.
 
 \begin{figure}[htbp]
 \centering
@@ -1378,21 +1646,38 @@ Two checks close the calculation, and they are different in kind.
 \textbf{The arithmetic check.} The nine pieces must reproduce the inversion of
 all the sources at once. This is not an approximation to be assessed: it follows
 from the four facts of Section~\ref{sec:pieces} and holds to the solver's
-tolerance, measured at the level of $10^{-8}$ relative on a real event. If it
-did not hold, the decomposition would mean nothing, so it is worth checking on
-every run rather than trusting.
+tolerance --- $1.7\times10^{-8}$ relative on the walkthrough event,
+$5\times10^{-9}$ on the event of Section~\ref{sec:polar}. If it did not hold,
+the decomposition would mean nothing, so it is worth checking on every run
+rather than trusting.
 
 \textbf{The physical check.} The sum of the pieces against the \emph{observed}
 anomalous rotational wind. What is left over is the part the balance equations
-do not represent: the divergent and unbalanced flow. It is not an error and it
-is not a wall response --- there is no wall. Its size is a property of the event
-and is worth reporting.
+do not represent: the anomaly of the divergent and unbalanced flow. It is not
+an error and it is not a wall response --- there is no wall. Its size is a
+property of the event and is worth reporting: on the walkthrough event the
+pieces sum to 20.0~m~s$^{-1}$ rms at 250~hPa over the northern hemisphere
+against an observed anomaly of 21.1, leaving 3.1~m~s$^{-1}$, 15\% of the
+anomaly; on the event of Section~\ref{sec:polar} the figures are 19.1 against
+20.3, leaving 4.2, or 21\%.
 
-The distinction to hold on to: the pieces sum to the all-sources linear solve;
-they do not sum to the difference between the balanced total state and the
-observed mean state. The gap between those two is exactly the physical residual
-above, and it is stored under its own name rather than distributed over the
-pieces.
+Three quantities are worth keeping apart here, and the walkthrough event puts
+a number on each. The pieces sum to the all-sources linear solve, exactly.
+They do not sum to the difference between the balanced total state and the
+observed mean state: the frozen operator is the exact finite-increment
+operator between the mean and the total, but the mean enters as observed
+rather than balanced (Section~\ref{sec:system}), so the balanced perturbation
+satisfies the frozen system with the mean state's own balance residual as an
+extra source, and the pieces --- driven by the potential-vorticity and
+boundary-temperature anomalies alone --- miss it by the response to that
+imbalance: 4.1~m~s$^{-1}$ rms at 250~hPa. The balanced total state, in turn,
+misses the observed rotational wind by 5.0~m~s$^{-1}$ rms out of 31.0, which
+is the departure of the event itself from balance. What is left over after
+the pieces, the 3.1~m~s$^{-1}$ above, is the difference of the two: the
+event's imbalance less the response to the mean's. It is smaller than either
+because the two departures from balance are alike and largely cancel in the
+anomaly. The leftover is stored under its own name rather than distributed
+over the pieces.
 
 \begin{figure}[htbp]
 \centering
@@ -1410,7 +1695,10 @@ Nothing in Sections~\ref{sec:exner} to \ref{sec:closure} refers to where the
 event is. The operators are global, the grid has no pole row, no metric factor
 is divided by, and there is no box to draw. An event at 79~N, half of whose
 surroundings lie across the pole, is inverted by the same calculation in the
-same number of Newton steps as one at 43~N.
+same number of Newton steps as one at 43~N: five, to a final increment of
+0.003~m, with the limiter never brought in, the pieces reproducing the
+all-sources inversion to $5\times10^{-9}$, and 4.2~m~s$^{-1}$ of a
+20.3~m~s$^{-1}$ anomaly, 21\%, left over as the unbalanced part.
 
 Two practical points about output near the pole.
 
@@ -1452,8 +1740,8 @@ what & default & effect \\
 \midrule
 Coriolis floor $\varphi_0$ & $12^\circ$ & $f^{*}/|f| = 1.52$ at 10.5~N, 1.17 at 20~N, \\
  & & 1.08 at 30~N, 1.04 at 45~N \\
-taper band & $5^\circ$--$20^\circ$ & 74\% of the reference vorticity removed at 10.5~N, \\
- & & nothing removed above 20~N \\
+taper band & $5^\circ$--$20^\circ$ & the quadratic terms weighted by 0.26 at 10.5~N, \\
+ & & by 1 above 20~N \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1471,34 +1759,33 @@ That check is a requirement, not a suggestion, and its outcome is not the one
 that might be expected. Narrowing the band makes the answer worse, not better.
 Measured over the southern third of an event patch --- the part that reaches
 into the band --- the residual against the observed anomalous rotational wind
-is:
-
-\begin{center}
-\begin{tabular}{lr}
-\toprule
-configuration & residual [m~s$^{-1}$] \\
-\midrule
-taper $5^\circ$--$20^\circ$, floor $12^\circ$ (default) & 3.30 \\
-taper $2^\circ$--$8^\circ$, floor $4^\circ$ & 4.19 \\
-no taper, floor $4^\circ$ & 4.67 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-The default is the best of the three. A narrow band leaves the kink at the
+is smallest with the default band and floor, larger with a band of
+$2^\circ$--$8^\circ$ and a floor of $4^\circ$, and largest with no taper at
+all. A narrow band leaves the kink at the
 equator inside the operator's coefficients, and a small floor leaves $\grad f^{*}$
 nearly discontinuous there; both radiate into the subtropics. The rule is
 therefore to run both configurations and report both, not to treat the smaller
 floor as the truthful one.
 
-One further inconsistency inside the band, stated for completeness. With the
-taper on, the balance row's reference streamfunction is rebuilt as
-$\nabla^{-2}$ of the tapered vorticity, while the cross-term coefficients of the
-potential-vorticity row are taken from the untapered spectra and then ramped to
-zero. Because $\nabla^{-2}$ is non-local, those two reference flows are not
-literally the same field, inside the band or outside it. It does not break the
-sum-closure --- every piece shares the same operator --- and for the same reason
-the nonlinear residual cannot see it.
+Inside the band the taper is a weight on the operator's products,
+\eqref{eq:tapered}--\eqref{eq:partner}, so the tapered system is itself an
+exact quadratic: the midpoint identity holds with the taper on, the frozen
+operator is the exact finite-increment operator of the tapered system, and the
+sum-closure is untouched. What the taper costs is therefore entirely the
+difference between the tapered system and the posed one, and that difference
+is confined to the band by construction.
+
+It shows up in one place that is easy to misread. The balance residual of the
+posed equation is reported as a height by inverting a Laplacian over the whole
+sphere, so the band's residual --- where the solved system differs from the
+posed one by construction --- spreads into every latitude of that height
+field, and the extratropical maximum of the report is not an extratropical
+number. On the walkthrough event that maximum reads 25~m, while the same
+residual measured locally poleward of the band is
+$1$--$4\times10^{-7}$~s$^{-1}$ of equivalent vorticity, worth 0.04--3~m of
+height when the Laplacian is inverted region by region. The
+potential-vorticity residuals involve no such inversion and can be read as
+they are.
 
 \subsection{Floors that keep the operator elliptic}
 
@@ -1509,6 +1796,7 @@ name & default & applies to & note \\
 \midrule
 \code{avo\_min} & $10^{-6}$~s$^{-1}$ & $A=f^{*}+\lap\tilde\psi$ & absolute vorticity \\
 \code{stb\_min} & $10^{-4}$ & $S=\tilde\Phi_{\Pi\Pi}$ & static stability \\
+\code{deformation\_margin} & 0.05 & balance row, deformation part & limiter margin $m$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1516,15 +1804,23 @@ name & default & applies to & note \\
 The floors are stated in SI deliberately: in a non-dimensional scaling the same
 literal changes physical meaning with resolution and level count.
 
+The third entry is the margin of the deformation limiter \eqref{eq:limiter} of
+Section~\ref{sec:limiter}: where the limiter acts it holds the smaller
+eigenvalue of the balance row's symbol at $m$ times the absolute vorticity.
+The limiter is not a floor on a coefficient but a weight on the deformation
+part of one row, and it is decided by policy rather than pointwise from the
+reference alone: \code{adaptive} by default, brought in only when the
+iteration meets a fold; \code{observed}, decided once from the observed state
+before the first step; or \code{off}. At most six refreshes are allowed in one
+solve. The area fraction on which it acted is published with every run, per
+level, for the total inversion and for the pieces, beside the clamp fractions.
+
 Two application rules are provided. The default, \code{parity}, compares against
 one tenth of the floor and then assigns the floor, so a value between the two is
 left alone; \code{clean} compares against the floor itself. The clamped area
 fraction per level is published with every run, because the clamps activate
 under strong anticyclones and blocks --- which is exactly where the science is,
 so a run should always be able to show how much of its domain was propped up.
-
-(The configuration also declares a \code{deformation\_margin}; it is not read
-anywhere and does nothing.)
 
 \subsection{Potential-vorticity floors}
 
@@ -1553,13 +1849,17 @@ positivity, whereas the nonlinear iteration does.
 \subsection{What ``exact'' means, and where it stops}
 
 The claim of Section~\ref{sec:pieces} is exactness \emph{of the operator that is
-actually built}. Two things modify that operator --- the floors above and the
-equatorial taper --- and wherever either bites, the operator is the exact
-finite-increment operator of a modified system. Everywhere else it is the exact
-finite-increment operator of \eqref{eq:sys1}--\eqref{eq:sys2}.
+actually built}. Three things modify that operator --- the floors above, the
+equatorial taper, and the deformation limiter --- and wherever any of them
+bites, the operator is the exact finite-increment operator of a modified
+system. Everywhere else it is the exact finite-increment operator of
+\eqref{eq:sys1}--\eqref{eq:sys2}. The limiter is the one of the three that is
+usually absent: it stayed out of the walkthrough event and of 48 of the 50
+catalogue events, which therefore solve the balance equation exactly as posed.
 
-The closure of the pieces is unaffected by either, because all pieces share the
-same operator. That is precisely why the taper is applied to coefficients only.
+The closure of the pieces is unaffected by any of the three, because all pieces
+share the same operator. That is precisely why the taper is a weight on the
+operator and the limiter a frozen field shared with the pieces.
 
 \subsection{Other things worth knowing}
 
@@ -1574,9 +1874,13 @@ same operator. That is precisely why the taper is applied to coefficients only.
       reaching into them cannot enter a composite as if they were observations.
 \item \textbf{Input guards.} A run stops rather than continues if the
       geopotential decreases with height at more than 1\% of points (which
-      catches a top-down level axis), or if potential temperature decreases with
-      height at more than 5\% of points (which catches $\theta$ supplied in place
-      of $T$).
+      catches a top-down level axis), if potential temperature decreases with
+      height at more than 5\% of points (which catches $\theta$ supplied in
+      place of $T$), or if the geopotential and the temperature are not
+      hydrostatically consistent --- the top boundary temperature the
+      geopotential implies outside 0.7--1.4 times the one the temperature
+      gives (which catches the same substitution when the other guards do
+      not, and a height supplied as geopotential; Section~\ref{sec:pv}).
 \item \textbf{Column averages} divide by the weight of the levels that were
       actually valid at each point, never by the full count. Filling a gap with
       zero and dividing by everything pulls the answer towards zero while keeping
@@ -1618,7 +1922,9 @@ n_{\text{lon}})$ covering the northern hemisphere:
 \end{center}
 
 A climatology on the same grid and the same levels is required alongside the
-event.
+event. The geopotential and the temperature of each state must be
+hydrostatically consistent, and are checked for it before anything is inverted
+(Section~\ref{sec:pv}).
 
 \subsection{One event, from Python}
 
@@ -1648,7 +1954,9 @@ u, v = rotational_wind_stack(solver, result.pieces["300"].psi_spec)
 potential-temperature piece, \code{"850"} through \code{"200"} the interior
 potential-vorticity levels, and \code{"100"} the top boundary.
 \code{result.diagnostics} carries the Newton history, the Krylov count per
-piece, and the clamp and floor reports. The sum of the pieces is
+piece, the residuals of the posed equations at the balanced state, the
+limiter's area fractions and refresh count, and the clamp and floor reports.
+The sum of the pieces is
 \code{result.summed\_psi()}, to be compared against
 \code{all\_sources\_inversion} for the closure check of
 Section~\ref{sec:closure}.
@@ -1685,6 +1993,9 @@ flag & default & meaning \\
 \code{--blend-south} & 5.0 & equatorward edge of the coefficient taper \\
 \code{--blend-north} & 20.0 & poleward edge of the coefficient taper \\
 \code{--no-blend} & --- & skip the taper entirely \\
+\code{--pv-source} & \code{operator} & stencils of the potential-vorticity source \\
+\code{--deformation-limiter} & \code{adaptive} & when the limiter is brought in \\
+\code{--krylov-maxiter} & 800 & operator applications per linear solve \\
 \code{--newton-max-steps} & 20 & cap on the nonlinear iteration \\
 \code{--solver-nlat}, \code{--solver-nlon} & 128, 256 & the Gaussian solver grid \\
 \code{--lat-half}, \code{--lon-half} & 30.0, 60.0 & output patch half-widths \\
@@ -1694,7 +2005,31 @@ flag & default & meaning \\
 \end{center}
 
 A run that hits the Newton cap is not automatically a failure: check the
-reported final increment in metres before treating it as one.
+reported final increment in metres and the posed-equation residuals before
+treating it as one.
+
+Each output file carries the run's own account of itself under \code{meta\_}
+keys. Beside the grid, the truncation, the piece names and the clamp and floor
+fractions, these are:
+
+\begin{center}
+\small
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.50\linewidth}>{\raggedright\arraybackslash}p{0.44\linewidth}}
+\toprule
+key & meaning \\
+\midrule
+\code{pv\_source} & which stencils evaluated the source \\
+\code{newton\_steps}, \code{newton\_converged}, \code{newton\_final\_increment\_m} & the nonlinear iteration and its last increment in metres \\
+\code{newton\_final\_balance\_m}, \code{newton\_final\_pv\_pvu} & residuals of the posed equations at the returned state, global maxima \\
+\code{newton\_final\_balance\_m\_extratropics}, \code{newton\_final\_pv\_pvu\_extratropics} & the same poleward of the taper band; read the balance one with Section~\ref{sec:choices} in mind \\
+\code{newton\_final\_pv\_pvu\_rms\_extratropics} & rms of the potential-vorticity residual poleward of the band \\
+\code{newton\_deformation\_fraction}, \code{piece\_deformation\_fraction} & area fraction per interior level on which the limiter acted, in the total inversion and in the pieces \\
+\code{newton\_limiter\_refreshes} & how many times the limiter was brought in or tightened \\
+\code{newton\_final\_nonelliptic\_fraction} & area fraction per level on which the linearised balance row is not elliptic at the returned state \\
+\code{inner\_solves\_unconverged}, \code{all\_pieces\_converged} & linear solves that ran out of budget; whether every piece converged \\
+\bottomrule
+\end{tabular}
+\end{center}
 
 \subsection{The walkthrough, and the tests}
 
@@ -1719,8 +2054,11 @@ The tests are the verification ladder for everything asserted above: that the
 vertical stencil is exact for quadratics in $\Pi$ and that its rows sum to zero;
 that the boundary folding and the boundary source are consistent; that the
 balance term reproduces the closed form for solid-body rotation and is invariant
-under rotating a vortex to the pole; that the spectral round trip is exact; and
-that the pieces sum to the all-sources solve.
+under rotating a vortex to the pole; that the spectral round trip is exact;
+that the midpoint identity holds with the taper on; that the limiter keeps the
+balance row elliptic and that the Jacobian is the derivative of the residual
+where it acts; that the pieces' boundary levels carry the thermal-wind ghost;
+and that the pieces sum to the all-sources solve.
 
 % =============================================================================
 \begin{thebibliography}{9}

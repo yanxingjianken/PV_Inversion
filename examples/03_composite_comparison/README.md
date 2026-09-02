@@ -38,14 +38,19 @@ cd /net/flood/data2/users/x_yan/pv_inversion_spherical
 PYTHONPATH=src micromamba run -n blocking python -m pvinv_sph.cli \
     examples/03_composite_comparison/catalogue.csv \
     --out-dir examples/03_composite_comparison/npz/peak/dh=+0 \
-    --workers 50 --pieces scale --newton-max-steps 60
+    --workers 25 --pieces scale --newton-max-steps 60
 ```
 
 `--pieces scale` is not the default and the two decompositions write disjoint key
-sets, so a directory must not hold both. `--newton-max-steps` is raised from its
-default of 20 because a few events need more than thirty; the wall clock of the
-whole run is set by the slowest event, not by the event count, so more workers
-than events buys nothing.
+sets, so a directory must not hold both. Two options that used to need setting
+now default to what this experiment wants: `--krylov-maxiter` is 800, and
+`--pv-source` is `operator`, which evaluates the potential-vorticity source with
+the inversion's own stencils rather than the limited-area code's centred
+differences. `--newton-max-steps 60` is kept on the command line only as a
+ceiling; no event approaches it. Forty-five of the fifty converge in four Newton
+steps and three in five; two meet a fold of the balance row, bring the
+deformation limiter in, and finish in nine and ten. The fifty inversions took
+12 minutes on 25 workers, set by those two.
 
 ## Pipeline
 
@@ -86,5 +91,47 @@ The scripts that established these numbers -- a truncation sweep, a study of whe
 the nonlinear iteration stops when it hits its step cap, and a check that the
 windowed driver reproduces production's geometry -- were one-off and have been
 removed. What they found is recorded where it will be read: the truncation figure
-above, the step cap raised to sixty with the final increment now in the output
+above, the final increment and the posed-equation residuals now in the output
 metadata, and the wall-counting correction now built into `windowed.py`.
+
+## Results
+
+Composite over the fifty events, 400-200 hPa, rms of the induced flow on the
+common mask, in m/s (`composite_metrics.json`). The reference anomaly is
+10.14 m/s in the production reconstruction and 10.12 m/s in the global one.
+
+| source | windowed | global | global - windowed |
+|---|---:|---:|---:|
+| surface theta | 3.45 | 3.03 | -0.41 |
+| lower PV (850-500) | 2.66 | 2.61 | -0.05 |
+| upper PV, planetary | 7.56 | 8.65 | +1.08 |
+| upper PV, eddy | 6.74 | 6.86 | +0.12 |
+| wall | 0.79 | 0 | -0.79 |
+| not attributed (wall + residual) | 1.09 | 0.26 | -0.83 |
+
+Removing the boundary moves the flow from the unattributed part and the surface
+into the planetary upper-level piece; the eddy and lower-level pieces barely
+change. The global residual, 0.26 m/s or 2.6 percent of the anomaly, is what
+the four pieces leave of the observed anomaly when there is no wall to absorb
+it; the windowed chain leaves 10.8 percent, three quarters of it in its wall.
+
+Convergence of the fifty global inversions, read from the `meta_*` keys of the
+files in `npz/peak/dh=+0/`:
+
+| quantity | value |
+|---|---|
+| `newton_converged` | 50 of 50 |
+| `newton_steps` | 4 on 45 events, 5 on 3, 9 and 10 on the two that needed the limiter; median 4 |
+| `inner_solves_unconverged` | 0 on 49 events, 1 on the event whose failing solve brought the limiter in |
+| `newton_limiter_refreshes` | 0 on 48 events, 1 on 2 |
+| `newton_final_pv_pvu_rms_extratropics` | median 0.0043 PVU, range 0.0019 to 0.0079 |
+| `newton_deformation_fraction` | 0 on 48 events; on the two limited ones the largest level fraction is 0.17 |
+| `newton_final_nonelliptic_fraction` | largest level fraction 0.11 (median over events), 0.14 at most: where the balance row's linearisation is not elliptic at the returned state, which the iteration crossed without meeting a fold on 48 events |
+| `all_pieces_converged` | 50 of 50 |
+| `pv_source` | `operator` on every event |
+
+The deformation fraction is the area of an interior level on which the
+ellipticity limiter reduces the balance row's deformation term. It is brought in
+only when the iteration meets a fold -- an inner solve that will not converge, a
+line search that stalls -- and it stayed out of forty-eight of the fifty
+inversions, which therefore solve the balance equation exactly as posed.

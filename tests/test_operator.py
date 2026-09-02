@@ -331,26 +331,28 @@ def test_preconditioner_rejects_a_non_elliptic_mean_state():
         SeparablePreconditioner(op)
 
 
-def test_balance_row_reference_is_one_flow():
-    """The tapered vorticity and the streamfunction it comes from must agree.
+def test_taper_is_a_weight_on_the_products_not_on_the_reference():
+    """The tapered vorticity is the weight times the reference's own vorticity.
 
-    The balance row uses the reference vorticity in one term and the reference
-    streamfunction's gradients in the others.  If the taper touches only the
-    first, the row is the exact tangent of no functional and the midpoint
-    linearisation stops holding where the taper acts -- while the pieces go on
-    summing perfectly, because they all share the same wrong operator.  Nothing
-    downstream can catch that, so it is asserted here.
+    The balance row uses the reference streamfunction's gradients in its
+    deformation terms and the tapered vorticity in its first term.  Those are
+    one flow, weighted, rather than two different flows: the weight multiplies
+    the products the quadratic terms are built from, which is what keeps the
+    bilinear form symmetric and the midpoint linearisation exact where the
+    taper acts.  Rebuilding the streamfunction from the tapered vorticity
+    instead -- the earlier design -- made the row the tangent of nothing there.
     """
     op, _ = build_case()
     frozen = op.frozen
-    if not frozen.mirror.blend:  # the taper is what this test is about
-        op = build_case()[0]
+    assert frozen.mirror.blend, "the taper is what this test is about"
     ops, levels = frozen.ops, frozen.levels
+    assert frozen.weight.min() < 1.0 and frozen.weight.max() == 1.0
     for k in range(len(levels.interior)):
-        implied = ops.synth(ops.lap(frozen.psi_ref_spec[k]))
-        assert np.abs(implied - frozen.zeta_ref[k]).max() / np.abs(
-            frozen.zeta_ref[k]
-        ).max() < 1e-10, "the balance row's two references are different flows"
+        own = ops.synth(ops.lap(frozen.psi_ref_spec[k]))
+        assert np.array_equal(frozen.psi_ref_spec[k], frozen.psi_spec[levels.interior[k]])
+        assert np.abs(frozen.weight * own - frozen.zeta_ref[k]).max() / np.abs(
+            own
+        ).max() < 1e-12, "the tapered vorticity is not the weighted reference vorticity"
 
 
 def test_boundary_ghosts_respect_geostrophy():

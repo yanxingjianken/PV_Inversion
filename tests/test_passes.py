@@ -137,23 +137,32 @@ def test_potential_vorticity_is_physical():
 def test_double_exner_shows_up_in_the_units():
     """Passing theta where temperature belongs is visible, not silent.
 
-    The Exner factor gets applied twice, so the stratification -- and with it the
-    potential vorticity -- comes out several times too large.  It stays stable, so
-    no structural check can catch it; the summary in PVU is what does.
+    With the limited-area source the Exner factor gets applied twice, so the
+    stratification -- and with it the potential vorticity -- comes out several
+    times too large; the summary in PVU is what shows it.  With the operator
+    source the potential vorticity comes from the geopotential and would not
+    change at all, so the diagnosis refuses the pair instead: the boundary
+    temperature the geopotential implies no longer matches the one the
+    temperature gives.
     """
     ops = make_ops()
     levels = build_levels("NL9")
     phi, temperature, u, v, _, theta = synthetic_atmosphere(ops, levels)
-    good = check_pv_units(diagnose(ops, levels, phi, temperature, u, v).q_hat, levels)
-    doubled = check_pv_units(
-        diagnose(
-            ops, levels, phi, potential_temperature(theta, levels.p_hpa), u, v
-        ).q_hat,
-        levels,
+    doubled = potential_temperature(theta, levels.p_hpa)
+    good = check_pv_units(
+        diagnose(ops, levels, phi, temperature, u, v, pv_source="data").q_hat, levels
+    )
+    bad = check_pv_units(
+        diagnose(ops, levels, phi, doubled, u, v, pv_source="data").q_hat, levels
     )
     assert good["median"] < 5.0
-    assert doubled["median"] > 5.0
-    assert doubled["median"] > 5.0 * good["median"]
+    assert bad["median"] > 5.0
+    assert bad["median"] > 5.0 * good["median"]
+    consistent = diagnose(ops, levels, phi, temperature, u, v)
+    inconsistent = diagnose(ops, levels, phi, doubled, u, v)
+    assert abs(consistent.boundary_theta_ratio[1] - 1.0) < 0.05
+    assert inconsistent.boundary_theta_ratio[1] < 0.7, inconsistent.boundary_theta_ratio
+    assert check_pv_units(consistent.q_hat, levels)["median"] < 5.0
 
 
 def test_inverted_level_axis_is_rejected():
@@ -211,7 +220,11 @@ def test_balanced_state_reproduces_a_balanced_input():
     # Quadratic convergence: with the Jacobian consistent with the residual, each
     # step should square the error until it hits the solver tolerance.
     drops = np.array(report.residuals)
-    assert drops[1] < 1e-2 * drops[0], f"first step barely moved: {drops}"
+    # The first residual is the physical one (the gauge constant is removed
+    # before the first step), and one Newton step from a nearly balanced input
+    # removes most of it; the later steps are quadratic.
+    assert drops[1] < 0.1 * drops[0], f"first step barely moved: {drops}"
+    assert np.all(np.diff(drops) < 0), f"residual did not fall monotonically: {drops}"
     assert drops[-1] < 1e-5 * drops[0], f"did not converge: {drops}"
 
     after = inv.residual_norms(

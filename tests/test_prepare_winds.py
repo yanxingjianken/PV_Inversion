@@ -32,19 +32,28 @@ CESM_LON = np.arange(288) * (360.0 / 288)
 
 
 def hemisphere_fields(nlev=9, lat_nh=CESM_LAT_NH, lon=CESM_LON):
+    """A smooth hemisphere of data whose height and temperature are hydrostatic.
+
+    The pipeline refuses a pair that is not, as real data always are to within a
+    few percent, so the height is integrated from the temperature rather than
+    written down independently.
+    """
+    from pvinv_sph.levels import G, RD, build_levels
+
     lon2d, lat2d = np.meshgrid(lon, lat_nh)
-    height = np.stack(
-        [
-            1500.0 * k
-            + 5000.0
-            + 200.0 * np.cos(np.radians(lat2d))
-            + 80.0 * np.sin(np.radians(lon2d))
-            for k in range(nlev)
-        ]
-    )
     temperature = np.stack(
         [290.0 - 6.0 * k + 5.0 * np.cos(np.radians(lat2d)) for k in range(nlev)]
     )
+    p_hpa = (
+        build_levels("NL9").p_hpa
+        if nlev == 9
+        else 1000.0 * (0.1 ** (np.arange(nlev) / (nlev - 1)))
+    )
+    height = np.empty_like(temperature)
+    height[0] = 100.0 + 200.0 * np.cos(np.radians(lat2d)) + 80.0 * np.sin(np.radians(lon2d))
+    for k in range(1, nlev):
+        t_bar = 0.5 * (temperature[k] + temperature[k - 1])
+        height[k] = height[k - 1] + (RD * t_bar / G) * np.log(p_hpa[k - 1] / p_hpa[k])
     u = np.stack([(5.0 + 3.0 * k) * np.cos(np.radians(lat2d)) for k in range(nlev)])
     v = np.stack(
         [
@@ -85,17 +94,20 @@ def tiny_inversion(centre, rotated_track=False, lat_half=30.0, lon_half=30.0):
     lat_nh = np.linspace(0.9375, 89.0625, 48)
     lon = np.arange(64) * (360.0 / 64)
     lon2d, lat2d = np.meshgrid(lon, lat_nh)
+    from pvinv_sph.levels import G, RD
+
     nlev = levels.nlev
-    height = np.stack(
-        [
-            1200.0 * k + 5000.0 + 150.0 * np.cos(np.radians(lat2d))
-            + 60.0 * np.sin(np.radians(lon2d))
-            for k in range(nlev)
-        ]
-    )
     temperature = np.stack(
         [288.0 - 6.5 * k + 4.0 * np.cos(np.radians(lat2d)) for k in range(nlev)]
     )
+    # Hydrostatic height, as real data are and as the pipeline requires.
+    height = np.empty_like(temperature)
+    height[0] = 100.0 + 150.0 * np.cos(np.radians(lat2d)) + 60.0 * np.sin(np.radians(lon2d))
+    for k in range(1, nlev):
+        t_bar = 0.5 * (temperature[k] + temperature[k - 1])
+        height[k] = height[k - 1] + (RD * t_bar / G) * np.log(
+            levels.p_hpa[k - 1] / levels.p_hpa[k]
+        )
     u = np.stack([(6.0 + 2.0 * k) * np.cos(np.radians(lat2d)) for k in range(nlev)])
     v = np.zeros_like(u)
     cfg = InversionConfig(

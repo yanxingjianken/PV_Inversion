@@ -123,6 +123,7 @@ def prepare_state(
     levels: LevelSet,
     ops: SphereOps,
     f_floor_deg: float = 12.0,
+    pv_source: str = "operator",
 ) -> DiagnosedState:
     """Diagnose one northern-hemisphere state on the global solver grid.
 
@@ -136,6 +137,7 @@ def prepare_state(
         ops: Operators on the Gaussian solver grid, which must be symmetric about
             the equator.
         f_floor_deg: Latitude scale of the smoothed Coriolis floor.
+        pv_source: Passed to :func:`pvinv_sph.passab.diagnose`.
 
     Returns:
         A :class:`~pvinv_sph.passab.DiagnosedState` whose fields are even about
@@ -204,4 +206,5 @@ def prepare_state(
         u_even,
         v_even,
         f_floor_deg=f_floor_deg,
+        pv_source=pv_source,
     )

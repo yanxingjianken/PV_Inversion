@@ -95,8 +95,9 @@ graph TD
 | P2 | Pass D coupled linear solve, preconditioner, gauges | done |
 | P3 | Pass A/B diagnostics and Pass C total inversion | done |
 | P4 | piecewise driver, PV floors, data path and output contract | done |
-| P5 | polar demonstration done; regression against the Fortran chain not started | partial |
-| P6 | batch driver written; throughput not yet benchmarked at scale | partial |
+| P5 | polar demonstration done; fifty-event comparison against the windowed chain done | done |
+| P6 | batch driver written; one event 90-130 s at T84, tail events no longer stall | partial |
+| P7 | taper as a weight on products (exact Newton), operator-consistent potential-vorticity source, ellipticity limiter as a safety net | done |
 
 Measured so far (nine levels, T24, unless noted):
 
@@ -105,17 +106,27 @@ Measured so far (nine levels, T24, unless noted):
 | spectral round-trip, pole-inclusive grids at full truncation | 5e-15 |
 | nonlinear balance term, rotation invariance with a vortex on the pole | 1e-7 |
 | pole-crossing vortex winds vs analytic | 2.5e-6 |
-| preconditioned linear solve (manufactured right-hand side) | 33 GMRES iterations to 6e-11 |
-| one operator application | 18 ms |
+| preconditioned linear solve (manufactured right-hand side) | 32 GMRES iterations to 7e-11 at T24; 34 to 1e-10 at T63 |
+| one operator application | 18 ms at T24, ~80 ms at T63 (one thread) |
 | per-level and boundary pieces vs the all-sources solve | closes |
 | nonlinear total inversion, no equatorial taper | 5 Newton steps, residual 1e-5 → 4e-20 |
 | balance residual of the returned state, as geopotential height | below rounding |
-| **real CESM event**, 96×192 solver grid, T63 | 119 s, 11 Newton steps, all nine pieces converged in 35–51 Krylov iterations |
-| **closure on that event**, pieces against the all-sources solve | 1.4e-8; 0.0000 m/s rms against an 8.6 m/s signal |
+| **walkthrough events** (ERA5 blocking 43.5 N, CESM Greenland 79 N), 96×192, T63 | 5 Newton steps each, no backtracking, no limiter; nine pieces in 44–61 Krylov iterations; closure 1.7e-8 and 5e-9 |
+| **fifty CESM blocking peaks**, 128×256, T84, symmetric taper and operator-consistent source | 50 of 50 converged, median 4 Newton steps, the limiter needed by 2 of the 50; the six events that used to hit the 60-step cap converge in 4–5 steps with the balance equation as posed |
+| fifty-event composite, unattributed flow at 400–200 hPa | see `examples/03_composite_comparison/README.md` for the current numbers against the windowed chain |
+| what the pieces leave of the observed anomaly at 250 hPa | 3.1 of 21.1 m/s (15 %) on the ERA5 case, 4.2 of 20.3 (21 %) at 79 N: the anomaly of the unbalanced flow |
 
 The nonlinear pass needs no solver of its own: both nonlinearities are quadratic, so the Jacobian
 of the residual *is* the linearised operator of the piecewise pass evaluated at the current
-iterate. Getting quadratic convergence out of it took one non-obvious step — evaluating the
+iterate. For that to hold on real events the equatorial taper has to multiply the products the
+quadratic terms are built from rather than one of their factors — otherwise the bilinear form is
+not symmetric and Newton only halves the residual per step — and the potential-vorticity source
+has to be evaluated with the operator's own stencils, so that the observed state satisfies the
+potential-vorticity row exactly. With both, fifty winter events converge in four Newton steps with
+the balance equation solved as posed. Where an iteration nevertheless meets a fold of the balance
+row — the strain-dominated flank of a strong anticyclone, where the linearised row is not elliptic
+— the deformation part of the row is limited from that point on, and the fact is reported
+(`docs/math_note.md` §8). Getting quadratic convergence out of it took one non-obvious step — evaluating the
 residual through the same code path as the Jacobian, using `F(x) = J_{x/2}[x] + F(0)`, which holds
 exactly for a quadratic system. Evaluated from the pristine equations instead, the residual and
 the Jacobian describe slightly different systems wherever a coefficient was tapered or floored,
@@ -123,39 +134,36 @@ and Newton stalls after roughly halving it.
 
 ## What a real event looks like
 
-One CESM 6-hourly state against its climatology, decomposed level by level. The
-attribution — each piece's projection onto the observed anomalous rotational wind
-through 400–200 hPa — comes out where potential-vorticity thinking says it should:
+The walkthrough (`examples/01_walkthrough`) inverts the ERA5 blocking ridge of 8 January 2025
+level by level. Induced rotational wind at 250 hPa, rms over the northern hemisphere, in m/s:
 
-| piece | 1000 | 850 | 700 | 500 | 400 | 300 | 250 | 200 | 100 |
+| piece | 1000 θ | 850 | 700 | 500 | 400 | 300 | 250 | 200 | 100 θ |
 |---|---|---|---|---|---|---|---|---|---|
-| projection | −0.06 | +0.00 | +0.00 | +0.07 | +0.17 | +0.25 | +0.25 | +0.28 | −0.01 |
+| rms | 3.8 | 2.1 | 1.8 | 1.9 | 3.2 | 7.2 | 10.3 | 11.7 | 14.7 |
 
-The upper-level potential-vorticity levels carry 94 % of it. Two things in that
-table are worth knowing before reading any output:
+Grouped, the surface carries 3.8, the three lower levels 3.7 and the upper levels with the top
+boundary 20.7, against an observed anomaly of 21.1. Two things in that table are worth knowing
+before reading any output:
 
-**The 100 hPa boundary piece is large but nearly orthogonal to the event.** Its
-amplitude reaches 30 m/s while its projection is −0.01, and it cancels against the
-upper-level pieces. That is the lid's doing, not the solver's: CESM's temperature
-anomaly at 100 hPa is 9.8 K rms, which the Exner factor turns into 19 K of
-potential temperature, and an anomaly that large and that planetary has a Rossby
-depth exceeding the domain — so its response is deep and almost barotropic. On a
-window that response is not attributed at all; it is what a lateral wall absorbs.
+**The 100 hPa boundary piece is the largest single piece** and largely cancels against the
+upper-level pieces. That is the lid's doing, not the solver's: a planetary temperature anomaly at
+the top boundary has a Rossby depth exceeding the domain, so its response is deep and almost
+barotropic. On a window that response is not attributed at all; it is what a lateral wall absorbs.
 
-**Levels 1000 and 100 are hydrostatic extensions, not solved levels**, exactly as
-in the Fortran chain. Their values are the level next to them plus the boundary
-temperature term, and the residual is correspondingly larger there.
+**Levels 1000 and 100 are hydrostatic extensions, not solved levels**, exactly as in the Fortran
+chain: the level next to them plus the boundary temperature's thermal-wind ghost.
 
 ## The polar case
 
-`experiments/exp02_polar_cap/run.py` inverts the same state twice, around a centre
-at 55°N and one at 88°N, and plots the 300 hPa piece's induced flow in both
-croppings. Both converge in the same eleven Newton steps and the same two minutes;
-the polar geographic box is 48 % empty because those rows are past the pole, and
-the rotated frame is complete with the same peak amplitude as the mid-latitude
-case (26.4 against 26.2 m/s).
+`examples/02_polar_event/run.py` inverts two CESM events, a control at 55 N and one at 80 N, and
+shows the 300 hPa flow induced by all pieces summed against the observed anomaly on a 40-degree
+disc about each centre, for the windowed chain and for the global inversion. Both global
+inversions converge in four Newton steps. The windowed chain cannot reach 24 % of the control's
+disc and 49 % of the polar one's, and misses the observed anomaly by 5.0 and 4.6 m/s rms where it
+does reach; the global inversion leaves 3 % and 2 % empty — the pole row, where the wind's
+components are undefined — and misses by 2.2 and 1.3 m/s.
 
-![polar cap](experiments/exp02_polar_cap/polar_cap.png)
+![polar cap](examples/02_polar_event/polar_cap.png)
 
 ## Reading the output against the windowed pipeline's
 
@@ -175,14 +183,16 @@ Differences that are real, and must be reported rather than chased:
 | whole-hemisphere against windowed anomaly | — | the far field of every piece |
 | Earth radius: 6.371e6 here, 2e7/π = 6.366e6 there | 0.08 % | amplitudes, uniformly |
 | `f*` with a 12° floor against signed `f` | ratio to \|f\|: 1.52 at 10.5°N, 1.17 at 20°, 1.08 at 30°, 1.04 at 45° | the subtropics |
-| coefficient taper across 5–20°N | reference vorticity 74 % removed at 10.5°N | the subtropics |
+| coefficient taper across 5–20°N | the quadratic terms carry 26 % of their weight at 10.5°N | the subtropics |
 | column average divides by the *valid* weight, not the full sum | a stripe rather than a bias | rows where the old file writes 0.0 and this one writes NaN |
 | levels 1000 and 100 are hydrostatic extensions | — | both codes, equally |
 
 Two consequences worth stating plainly. Nothing about the subtropical part of a solution should be
-quoted as physics without re-running with a smaller `f_floor_deg` and `blend=False` and reporting
-how much of it survives. And a patch centred below about 42°N reaches south of the data itself:
-those rows are the mirror scaffold and come back empty rather than filled with reflected weather.
+quoted as physics without re-running with a smaller `f_floor_deg` and a narrower taper and
+reporting both; narrowing the band makes the answer worse, not better, so the two configurations
+bracket the answer rather than one correcting the other. And a patch centred below about 42°N
+reaches south of the data itself: those rows are the mirror scaffold and come back empty rather
+than filled with reflected weather.
 
 ## A term the plane form drops
 
@@ -204,22 +214,30 @@ any comparison against the Fortran chain, not a discrepancy to explain away.
 
 ```
 src/pvinv_sph/
-  levels.py    pressure-level presets, Exner tables, the one PV unit conversion
-  sht.py       float64 spherical-harmonic transforms and vector calculus
-  sphere.py    invariant horizontal operators (balance term, cross terms, deformation)
-  vertical.py  Exner second differences and the hydrostatic boundary ghosts
-  mirror.py    hemisphere to sphere: even mirror, |f| floor, equatorial taper
-  state.py     packing spectra into the solver's real vectors
-  operator.py  the coupled linearised operator and its right-hand side
-  precond.py   separable preconditioner: one tridiagonal per spherical harmonic
-  krylov.py    Krylov driver with iteration telemetry
-  passab.py    Pass A/B: streamfunction and potential vorticity from the data
-  passc.py     Pass C: the total balanced state, by Newton-Krylov
-  config.py    solver configuration (grids, clamps, mirror, Krylov, Newton, PV floors)
-tests/         the verification ladder
-regression/    comparison against pvtend / the Fortran chain
-experiments/   exp01 low-latitude regression, exp02 polar cap
-docs/          derivation notes
+  levels.py       pressure-level presets, Exner tables, the one PV unit conversion
+  sht.py          float64 spherical-harmonic transforms and vector calculus
+  sphere.py       invariant horizontal operators (balance term, cross terms, deformation)
+  vertical.py     Exner second differences and the hydrostatic boundary ghosts
+  mirror.py       hemisphere to sphere: even mirror, |f| floor, equatorial weight
+  state.py        packing spectra into the solver's real vectors
+  operator.py     the coupled linearised operator, its limiter and its right-hand side
+  precond.py      separable preconditioner: one tridiagonal per spherical harmonic
+  krylov.py       Krylov driver with iteration telemetry
+  passab.py       Pass A/B: streamfunction and potential vorticity from the data
+  prepare.py      hemisphere file to global solver state (fill, mirror, regrid)
+  passc.py        Pass C: the total balanced state, by Newton-Krylov
+  passd.py        Pass D: the pieces, one linear solve each
+  qmin.py         potential-vorticity floors
+  scale_split.py  planetary / eddy split of the upper source
+  winds.py        induced winds and the two croppings around an event
+  pipeline.py     one event end to end, with the output contract
+  io.py           CESM readers and the atomic npz writer
+  cli.py          batch driver over a catalogue
+  config.py       solver configuration (grids, clamps, mirror, Krylov, Newton, PV floors)
+tests/            the verification ladder
+regression/       comparison against pvtend / the Fortran chain
+examples/         01 walkthrough notebook, 02 polar event, 03 fifty-event composite
+docs/             method.tex / method.pdf, math_note.md
 ```
 
 ## Running the tests
