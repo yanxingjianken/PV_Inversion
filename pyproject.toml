@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pvinv-sph"
-version = "0.2.0"
+version = "0.3.0"
 description = "Global spherical-harmonic piecewise potential-vorticity inversion (Davis & Emanuel 1991) valid across the poles"
 readme = "README.md"
 requires-python = ">=3.10"

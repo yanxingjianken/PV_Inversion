@@ -103,7 +103,7 @@ the output of `invert_event` is the same with or without an engine, to the bit.
 | P3 | Pass A/B diagnostics and Pass C total inversion | done |
 | P4 | piecewise driver, PV floors, data path and output contract | done |
 | P5 | polar demonstration done; fifty-event comparison against the windowed chain done | done |
-| P6 | batch driver written; one event 90-130 s at T84, tail events no longer stall | partial |
+| P6 | batch driver written; one event 45-65 s at T84, tail events no longer stall | partial |
 | P7 | taper as a weight on products (exact Newton), operator-consistent potential-vorticity source, ellipticity limiter as a safety net | done |
 
 Measured so far (nine levels, T24, unless noted):
@@ -114,7 +114,7 @@ Measured so far (nine levels, T24, unless noted):
 | nonlinear balance term, rotation invariance with a vortex on the pole | 1e-7 |
 | pole-crossing vortex winds vs analytic | 2.5e-6 |
 | preconditioned linear solve (manufactured right-hand side) | 32 GMRES iterations to 7e-11 at T24; 34 to 1e-10 at T63 |
-| one operator application | 18 ms at T24, ~80 ms at T63 (one thread) |
+| one operator application | 4 ms at T24, 25 ms at T63 (one thread) |
 | per-level and boundary pieces vs the all-sources solve | closes |
 | nonlinear total inversion, no equatorial taper | 5 Newton steps, residual 1e-5 → 4e-20 |
 | balance residual of the returned state, as geopotential height | below rounding |
